@@ -64,7 +64,7 @@ class Settings:
         self.screen_height = height
         self.fps = DEFAULT_FPS
         self.rad_scale = EARTH_RAD_SCALE
-        self.tres = DEFAULT_TRES
+        self.tres = DEFAULT_TRES    # time resolution
         self.time_scale = DEFAULT_TSCALE
         self.bgcolor = DEFAULT_BGCOLOR
         # self.starcolor = DEFAULT_STAR_COLOR
@@ -87,6 +87,10 @@ class Settings:
     def set_fps(self, fps):
         """ Set FPS """
         self.fps = fps
+        
+    def set_time_scale(self, time_scale):
+        """ Set time scale """
+        self.time_scale = time_scale
 
     def set_scales(self, rad_scale, time_scale, tres):
         """ Set scaling relative to Earth's radius """

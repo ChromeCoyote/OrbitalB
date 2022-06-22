@@ -20,11 +20,11 @@ class Cannonball(cosmos.Celestial):
 
         self.celestials = celestials
 
+        self.homeworld = cosmos.Celestial(sts)
         for body in celestials:
             if body.homeworld == True:
                 self.homeworld = body
-            else:
-                self.homeworld = cosmos.Celestial(sts)
+               
 
         self.escape_v = math.sqrt(2 * settings.GRAV_CONST * \
             self.homeworld.mass / self.homeworld.radius)

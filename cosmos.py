@@ -155,6 +155,7 @@ class Celestial:
         print(f"The celestial body's coordinates are ({self.x}, {self.y}).")
         print(f"The celestial body's velocity is ({self.vx}, {self.vy}).")
         print(f"The celestial body's speed is {self.get_speed()} km/s.")
+        print(f"The celestial body's acceleration is ({self.ax}, {self.ay}).")         
         print(f"The celestial body's screen x and y coordinates are ",end='')
         print(f"({self.screen_x}, {self.screen_y}).")
         print(f"The celestial body's screen radius is {self.screen_rad}.")
@@ -162,7 +163,7 @@ class Celestial:
     def get_accel(self, celestial):
         """ Calculate acceleration from other celestial body"""
         a_mag = settings.GRAV_CONST * celestial.mass / \
-            (self.get_dist(celestial.x, celestial.y))**2
+            ((self.get_dist(celestial.x, celestial.y))**2)
         (x, y) = self.get_unit(celestial.x, celestial.y)
         x *= a_mag
         y *= a_mag
@@ -181,8 +182,8 @@ class Celestial:
     def accelerate(self, celestials):
         """ Change celestial body's velocity """
         self.set_accel(celestials)
-        self.vx += self.ax * self.sts.tres / 1000
-        self.vy += self.ay * self.sts.tres / 1000
+        self.vx += self.ax * self.sts.tres
+        self.vy += self.ay * self.sts.tres
 
     def bounce(self, celestials):
         """ Check for collision & reflect if so """

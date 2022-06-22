@@ -5,6 +5,8 @@ import settings
 import pygame
 import math
 
+from settings import State
+
 class Cannonball(cosmos.Celestial):
     """ Class for projectile (or projectiles), child of Celestial """
 
@@ -19,6 +21,8 @@ class Cannonball(cosmos.Celestial):
         self.color = (255, 255, 255)      # white
 
         self.celestials = celestials
+        
+        self.state = State.DEAD     # starts out not launched (dead)
 
         self.homeworld = cosmos.Celestial(sts)
         for body in celestials:

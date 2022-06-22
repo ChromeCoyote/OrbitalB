@@ -5,6 +5,8 @@ import settings
 import pygame
 import numpy
 
+from settings import State
+
 DEFAULT_BODY_COLOR = (102, 51, 0)       # brown color
 
 def bounce_v(m1, m2, x1, x2, v1, v2):
@@ -33,6 +35,9 @@ class Celestial:
         self.radius = settings.EARTH_RADIUS      # radius of body in km
         self.density = settings.EARTH_DENSITY
         self.mass = self.get_mass()
+
+        # state of the body
+        self.state = State.ALIVE        # starts out alive
 
         self.x = 0                      # math x coordinate in km
         self.y = 0                      # math y coordinate in km

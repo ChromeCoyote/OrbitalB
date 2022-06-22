@@ -1,5 +1,8 @@
 import pygame
 import random
+# import aenum
+
+from aenum import Flag, auto
 
 # real world variables
 EARTH_RADIUS = 6_371    # in kilometers
@@ -30,6 +33,10 @@ EARTH_RAD_SCALE = 0.1   # A body with Earth's radius will take up this
 
 # amount of energy lost when there is a collision
 DEFAULT_ENERGY_LOSS = 0.7
+
+class State(Flag):
+    ALIVE = auto()
+    DEAD = auto()
 
 def rand_clr():
     """ Gets color of star based on galactic distribution """

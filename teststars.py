@@ -1,7 +1,5 @@
 import settings, pygame, random, cosmos, sys, math, cannonball
 
-from settings import State
-
 sets = settings.Settings()
 # sets.set_bgcolor(40, 60, 120)
 sets.fill_background()
@@ -53,48 +51,74 @@ for body in celestials:
 
 ball = cannonball.Cannonball(sets, celestials)
 ball.screen_rad = 2
-ball.vx *= 1.9
-ball.vy *= 1.9
+ball.vx *= 0.5
+ball.vy *= 0.5
 # ball.x += settings.EARTH_RADIUS
 
 time = 0
+ball.alive = False
+save_angle = 0
 
-key_press = pygame.K_DELETE
+print("\n")
+ball.display_ball_values()
 
 while True:
+        
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
         elif event.type == pygame.KEYDOWN:
-             key_press = event.key
-     
+            if event.key == pygame.K_SPACE and ball.alive == False:
+                ball.alive = True
+            elif event.key == pygame.K_UP and ball.alive == False:
+                ball.launch_angle -= ball.radian_step
+                ball.reset_velocity()
+                print("\n")
+                ball.display_ball_values()
+            elif event.key == pygame.K_DOWN and ball.alive == False:
+                ball.launch_angle += ball.radian_step
+                ball.reset_velocity()
+                print("\n")
+                ball.display_ball_values()
+                                
     clock.tick(sets.fps)
     sets.fill_background()
     sets.draw_stars()
 
-    if key_press == pygame.K_SPACE:
-        ball.state == State.ALIVE
-        text = pygame.font.Font.render(font, f"Space Pressed!", True, (255, 255, 255))
-        text_rect = text.get_rect()
-        text_rect.midbottom = screen_rect.midtop
+    save_angle = ball.launch_angle
 
     for body in celestials:
         time = 0
         while time < (sets.time_scale*sets.tres):
             body.move(celestials)
             # body.bounce(celestials)
-            if ball.state == State.ALIVE:
+            if ball.alive == True:
                 ball.move(celestials)
+                if ball.check_impact(celestials) == True:
+                    ball.alive = False
+                    ball.set_launch_point()
+                    ball.reset_default_v()
+                    ball.launch_angle = save_angle
             time += sets.tres
+        
         body.draw_bodycircle()
-        if ball.state == State.ALIVE:
+        if ball.alive == True:
             ball.draw_bodycircle()
- 
-    text = pygame.font.Font.render(
+        else:
+            ball.reset_velocity()
+            ball.draw_launch_v()
+                
+    text_FPS = pygame.font.Font.render(
         font, f"FPS:  {int(clock.get_fps())}", True, (255, 255, 255))
-    text_rect = text.get_rect()
-    text_rect.midbottom = screen_rect.midbottom
-
-    sets.screen.blit(text, text_rect)
+    text_rect_FPS = text_FPS.get_rect()
+    text_rect_FPS.midbottom = screen_rect.midbottom
+    
+    # text_ball = pygame.font.Font.render(
+    #     font, f"Angle:  {ball.launch_angle}, vel.:  <{ball.", True, (255, 255, 255))
+    # text_rect_FPS = text_FPS.get_rect()
+    # text_rect_FPS.midbottom = screen_rect.midbottom
+    
+    
+    sets.screen.blit(text_FPS, text_rect_FPS)
 
     pygame.display.flip()

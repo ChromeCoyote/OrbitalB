@@ -5,8 +5,6 @@ import settings
 import pygame
 import numpy
 
-from settings import State
-
 DEFAULT_BODY_COLOR = (102, 51, 0)       # brown color
 
 def bounce_v(m1, m2, x1, x2, v1, v2):
@@ -37,7 +35,7 @@ class Celestial:
         self.mass = self.get_mass()
 
         # state of the body
-        self.state = State.ALIVE        # starts out alive
+        self.alive = True               # starts out alive
 
         self.x = 0                      # math x coordinate in km
         self.y = 0                      # math y coordinate in km
@@ -65,7 +63,8 @@ class Celestial:
         else:
             print("Warning!  No screen inialized!")
 
-        self.set_screenxy()     # set screen x and y coordinates
+        # reset screen x and y coordinates
+        self.get_screenxy()
 
         # set screen radius
         self.screen_rad = self.radius * sts.screen_dist_scale
@@ -79,7 +78,7 @@ class Celestial:
         """Set x and y coordinates for the body"""
         self.x = x
         self.y = y
-        self.set_screenxy()
+        self.get_screenxy()
 
     def set_v(self, vx, vy):
         """Set velocity of body"""
@@ -107,6 +106,13 @@ class Celestial:
         """Get vector pointing from x and y to body"""
         return (x - self.x, y - self.y)
 
+    def normalize(self, x, y):
+        """ normalize given vector """
+        mag = math.sqrt(x**2 + y**2)
+        returnx = x / mag
+        returny = y / mag
+        return (returnx, returny)
+    
     def get_unit(self, x, y):
         """Get unit vector pointing from x and y to body"""
         [unit_x, unit_y] = self.get_vect(x, y)
@@ -125,16 +131,17 @@ class Celestial:
         self.screen_rad = self.radius * self.sts.screen_dist_scale
         self.color = color
 
-    def set_screenxy(self):
+    def set_screenxy(self, X, Y):
         """ Set current x and y coordinates to screen's coordinates """
-        self.screen_x = int((self.x * self.sts.screen_dist_scale) + \
+        returnx = int((X * self.sts.screen_dist_scale) + \
             (self.width / 2) )
-        self.screen_y = int((-self.y * self.sts.screen_dist_scale) + \
+        returny = int((-Y * self.sts.screen_dist_scale) + \
             (self.height / 2) )
+        return (returnx, returny)
 
     def get_screenxy(self):
         """Get x and y coordinates on screen"""
-        self.set_screenxy()
+        (self.screen_x, self.screen_y) = self.set_screenxy(self.x, self.y)
         return (self.screen_x, self.screen_y)
 
     def draw_bodycircle(self):
@@ -190,27 +197,31 @@ class Celestial:
         self.vx += self.ax * self.sts.tres
         self.vy += self.ay * self.sts.tres
 
-    def bounce(self, celestials):
-        """ Check for collision & reflect if so """
+    def check_hit(self, celestial):
         rel_dist = 0            # relative distance between bodies
         combo_rad = 0
+        rel_dist = self.get_dist(celestial.x, celestial.y)
+        combo_rad = self.radius + celestial.radius
+        if rel_dist < combo_rad:    # if spheres overlap...
+            return True
+        else:
+            return False
 
+    def bounce(self, celestials):
+        """ Check for collision & reflect if so """
+        
         addx = 0                # for adjusting position vectors
         addy = 0
 
         for celestial in celestials:
-            if celestial.name != self.name:
-                rel_dist = self.get_dist(celestial.x, celestial.y)
-                combo_rad = self.radius + celestial.radius
-                if rel_dist < combo_rad:    # if spheres overlap...
-
+            if celestial.name != self.name and check_hit(self, celestial):
                     # first, reset coordinates to eliminate overlap
                     (addx, addy) = self.get_unit(celestial.x, celestial.y)
                     addx = -addx
                     addy = -addy
                     self.x += addx * abs(rel_dist - combo_rad)
                     self.y += addy * abs(rel_dist - combo_rad)
-                    self.set_screenxy()
+                    self.get_screenxy()
 
                     oldvx = self.vx     # placeholders for old self velocity
                     oldvy = self.vy
@@ -240,4 +251,4 @@ class Celestial:
         self.accelerate(celestials)
         self.x += self.vx * self.sts.tres
         self.y += self.vy * self.sts.tres
-        self.set_screenxy()
+        self.get_screenxy()

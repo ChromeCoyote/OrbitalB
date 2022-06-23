@@ -8,7 +8,12 @@ import math
 DEFAULT_BALL_COLOR = (255, 255, 255)    # white
 # scaling for changes to velocity per key press
 DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
-DEFAULT_ARROW_COLOR = (255, 0, 0)       # default arrow color (red)
+DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
+DEFAULT_WARM_ARROW_COLOR = (255, 255, 0)
+DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)
+HOT_THRESHOLD = 0.9                         # thresholds for arrows
+COLD_THRESHOLD = 0.3
+
 # divide escape velocity by this to figure velocity change step
 DEFAULT_SPEED_DIV = 100        
 DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radians
@@ -23,7 +28,7 @@ class Cannonball(cosmos.Celestial):
 
         self.name = 'Cannonball'
 
-        self.radius = 1             # 1 meter radius
+        self.radius = 0.001             # 1 m meter radius
         
         self.homeworld = False       # not the homeworld ;)
         self.screen_rad = 1         # small yet visible object for testing
@@ -39,7 +44,7 @@ class Cannonball(cosmos.Celestial):
         self.escape_v = math.sqrt(2 * settings.GRAV_CONST * \
             self.homeworld.mass / self.homeworld.radius)
     
-        self.arrow_color = DEFAULT_ARROW_COLOR      # velocity arrow color
+        self.arrow_color = DEFAULT_WARM_ARROW_COLOR      # velocity arrow color
         self.radian_step = DEFAULT_RADIAN_STEP
         # step for velocity change with each key press
         self.speed_step = self.escape_v / DEFAULT_SPEED_DIV
@@ -54,6 +59,7 @@ class Cannonball(cosmos.Celestial):
         self.speed = 0.5 * self.escape_v  # set initial speed to half of escape velocity 
         self.vx = self.speed * math.cos(self.launch_angle)
         self.vy = self.speed * math.sin(self.launch_angle)
+        self.set_arrow_color()
         
     def reset_velocity(self):
         if self.speed < 0:
@@ -84,9 +90,9 @@ class Cannonball(cosmos.Celestial):
     def set_launch_point(self):
         """ set launch point based on position angle (pos_angle) """
         self.x = self.homeworld.radius * math.cos(self.pos_angle) \
-            + self.homeworld.x + self.radius
+            + self.homeworld.x
         self.y = self.homeworld.radius * math.sin(self.pos_angle) \
-            + self.homeworld.y + self.radius
+            + self.homeworld.y
         super().get_screenxy()
         
     def find_speed(self):
@@ -99,7 +105,18 @@ class Cannonball(cosmos.Celestial):
                 hit = True
         return hit
         
+    def set_arrow_color(self):
+        ratio = self.speed / self.escape_v
+        if ratio > HOT_THRESHOLD:
+            self.arrow_color = DEFAULT_HOT_ARROW_COLOR
+        elif ratio < COLD_THRESHOLD:
+            self.arrow_color = DEFAULT_COLD_ARROW_COLOR
+        else:
+            self.arrow_color = DEFAULT_WARM_ARROW_COLOR
+        
     def draw_launch_v(self):
+        self.set_arrow_color()
+        
         (tempvx, tempvy) = super().normalize(self.vx, self.vy)
         tempvx *= self.homeworld.radius * (self.speed / self.escape_v)
         tempvx += self.x

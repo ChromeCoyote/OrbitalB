@@ -15,13 +15,13 @@ celestials = []
 
 celestials.append(cosmos.Celestial(sets))
 
-# celestials.append(cosmos.Celestial(sets))
-# celestials[1].set_attr('Moon #1', False, settings.LUNA_DENSITY, \
-#   settings.LUNA_RADIUS, (255,255,255) )
-# celestials[1].set_xy(0, settings.EARTH_RADIUS * 2)
-# speed = math.sqrt(settings.GRAV_CONST * celestials[0].mass / \
-#   celestials[1].radius) / 3
-# celestials[1].set_v(speed, 0)
+celestials.append(cosmos.Celestial(sets))
+celestials[1].set_attr('Moon #1', False, settings.LUNA_DENSITY, \
+    settings.LUNA_RADIUS, (255,255,255) )
+celestials[1].set_xy(0, settings.EARTH_RADIUS * 2)
+speed = math.sqrt(settings.GRAV_CONST * celestials[0].mass / \
+    celestials[1].radius) / 3
+celestials[1].set_v(speed, 0)
 
 # celestials.append(cosmos.Celestial(sets))
 # celestials[2].set_attr('Moon #2', False, settings.LUNA_DENSITY, \
@@ -87,6 +87,12 @@ while True:
             elif event.key == pygame.K_KP_MINUS and ball.alive == False:
                 ball.speed -= ball.speed_step
                 ball.reset_velocity()
+            elif event.key == pygame.K_LEFT:
+                ball.pos_angle += ball.radian_step
+                ball.set_launch_point()
+            elif event.key == pygame.K_RIGHT:
+                ball.pos_angle -= ball.radian_step
+                ball.set_launch_point()    
                                 
     clock.tick(sets.fps)
     sets.fill_background()
@@ -105,18 +111,18 @@ while True:
                 if ball.check_impact(celestials) == True:
                     ball.alive = False
                     ball.set_launch_point()
-                    ball.reset_default_v()
                     ball.launch_angle = save_angle
                     ball.speed = save_speed
+                    ball.reset_velocity()
             time += sets.tres
         
         body.draw_bodycircle()
-        if ball.alive == True:
-            ball.draw_bodycircle()
-        else:
-            ball.reset_velocity()
-            ball.draw_launch_v()
-                
+    
+    if ball.alive == False:
+        ball.draw_launch_v()
+        ball.set_launch_point()
+    ball.draw_bodycircle()    
+            
     text_FPS = pygame.font.Font.render(
         font, f"FPS:  {int(clock.get_fps())}", True, (255, 255, 255))
     text_rect_FPS = text_FPS.get_rect()

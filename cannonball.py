@@ -7,10 +7,10 @@ import math
 
 DEFAULT_BALL_COLOR = (255, 255, 255)    # white
 # scaling for changes to velocity per key press
-DEFAULT_RADIAN_STEP = ((2*math.pi) / 360) * 10
+DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
 DEFAULT_ARROW_COLOR = (255, 0, 0)       # default arrow color (red)
 # divide escape velocity by this to figure velocity change step
-DEFAULT_VSTEP_DIV = 100        
+DEFAULT_SPEED_DIV = 100        
 DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radians
 DEFAULT_FIRING_ANGLE = math.pi / 4       # initial firing angle in radians
 
@@ -42,7 +42,7 @@ class Cannonball(cosmos.Celestial):
         self.arrow_color = DEFAULT_ARROW_COLOR      # velocity arrow color
         self.radian_step = DEFAULT_RADIAN_STEP
         # step for velocity change with each key press
-        self.v_step = self.escape_v / DEFAULT_VSTEP_DIV
+        self.speed_step = self.escape_v / DEFAULT_SPEED_DIV
         
         self.celestials = celestials
         
@@ -56,6 +56,16 @@ class Cannonball(cosmos.Celestial):
         self.vy = self.speed * math.sin(self.launch_angle)
         
     def reset_velocity(self):
+        if self.speed < 0:
+            self.speed = 0
+        elif self.speed > self.escape_v:
+            self.speed = self.escape_v
+        
+        if self.launch_angle < 0:
+            self.launch_angle = 0
+        elif self.launch_angle > 2*math.pi:
+            self.launch_angle = self.launch_angle % 2*math.pi
+        
         self.vx = self.speed * math.cos(self.launch_angle)
         self.vy = self.speed * math.sin(self.launch_angle)
         

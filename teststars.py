@@ -58,6 +58,7 @@ ball.vy *= 0.5
 time = 0
 ball.alive = False
 save_angle = 0
+save_speed = 0
 
 print("\n")
 ball.display_ball_values()
@@ -73,19 +74,26 @@ while True:
             elif event.key == pygame.K_UP and ball.alive == False:
                 ball.launch_angle -= ball.radian_step
                 ball.reset_velocity()
-                print("\n")
-                ball.display_ball_values()
+                # print("\n")
+                # ball.display_ball_values()
             elif event.key == pygame.K_DOWN and ball.alive == False:
                 ball.launch_angle += ball.radian_step
                 ball.reset_velocity()
-                print("\n")
-                ball.display_ball_values()
+                # print("\n")
+                # ball.display_ball_values()
+            elif event.key == pygame.K_KP_PLUS and ball.alive == False:
+                ball.speed += ball.speed_step
+                ball.reset_velocity()
+            elif event.key == pygame.K_KP_MINUS and ball.alive == False:
+                ball.speed -= ball.speed_step
+                ball.reset_velocity()
                                 
     clock.tick(sets.fps)
     sets.fill_background()
     sets.draw_stars()
 
     save_angle = ball.launch_angle
+    save_speed = ball.speed
 
     for body in celestials:
         time = 0
@@ -99,6 +107,7 @@ while True:
                     ball.set_launch_point()
                     ball.reset_default_v()
                     ball.launch_angle = save_angle
+                    ball.speed = save_speed
             time += sets.tres
         
         body.draw_bodycircle()

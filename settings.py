@@ -1,3 +1,4 @@
+from pickle import TRUE
 import pygame
 import random
 import math
@@ -59,6 +60,8 @@ class Settings:
     def __init__(self, width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT):
         """Initialize the game's settings."""
         pygame.init()       # inialize pygame modules
+
+        self.debug = True   # debugging on for now...
 
         #Screen settings
         self.screen_width = width

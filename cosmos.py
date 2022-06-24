@@ -5,7 +5,7 @@ import settings
 import pygame
 import numpy
 
-DEFAULT_BODY_COLOR = (102, 51, 0)       # brown color
+DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
 
 def bounce_v(m1, m2, x1, x2, v1, v2):
     """ Calculate new velocity for body 1 """
@@ -35,7 +35,8 @@ class Celestial:
         self.mass = self.get_mass()
 
         # state of the body
-        self.alive = True               # starts out alive
+        self.active = True               # starts out alive
+        self.gravity = True             # by default, exerts gravity
 
         self.x = 0                      # math x coordinate in km
         self.y = 0                      # math y coordinate in km
@@ -109,8 +110,12 @@ class Celestial:
     def normalize(self, x, y):
         """ normalize given vector """
         mag = math.sqrt(x**2 + y**2)
-        returnx = x / mag
-        returny = y / mag
+        if mag == 0:
+            returnx = 0
+            returny = 0
+        else:
+            returnx = x / mag
+            returny = y / mag
         return (returnx, returny)
     
     def get_unit(self, x, y):

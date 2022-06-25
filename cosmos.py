@@ -121,10 +121,7 @@ class Celestial:
     def get_unit(self, x, y):
         """Get unit vector pointing from x and y to body"""
         [unit_x, unit_y] = self.get_vect(x, y)
-        dist = self.get_dist(x, y)
-        unit_x /= dist
-        unit_y /= dist
-        return (unit_x, unit_y)
+        return self.normalize(unit_x, unit_y)
 
     def set_attr(self, name, home, density, radius, color):
         """Set name, mass and radius for the body"""
@@ -154,9 +151,9 @@ class Celestial:
         pygame.draw.circle(self.sts.screen, self.color, (self.screen_x, \
             self.screen_y), self.screen_rad)
 
-    def update_settings(sts):
+    def update_settings(new_settings):
         """ Updates settings class object """
-        self.sts = sts
+        self.sts = new_settings
 
     def display_values(self):
         """Print properties of world"""
@@ -203,14 +200,14 @@ class Celestial:
         self.vy += self.ay * self.sts.tres
 
     def check_hit(self, celestial):
-        rel_dist = 0            # relative distance between bodies
-        combo_rad = 0
+        hit = False
+        
         rel_dist = self.get_dist(celestial.x, celestial.y)
         combo_rad = self.radius + celestial.radius
         if rel_dist < combo_rad:    # if spheres overlap...
-            return True
-        else:
-            return False
+            hit = True
+        
+        return hit
 
     def bounce(self, celestials):
         """ Check for collision & reflect if so """
@@ -219,11 +216,13 @@ class Celestial:
         addy = 0
 
         for celestial in celestials:
-            if celestial.name != self.name and check_hit(self, celestial):
+            if celestial.name != self.name and self.check_hit(celestial):
                     # first, reset coordinates to eliminate overlap
                     (addx, addy) = self.get_unit(celestial.x, celestial.y)
                     addx = -addx
                     addy = -addy
+                    rel_dist = self.get_dist(celestial.x, celestial.y)
+                    combo_rad = self.radius + celestial.radius
                     self.x += addx * abs(rel_dist - combo_rad)
                     self.y += addy * abs(rel_dist - combo_rad)
                     self.get_screenxy()

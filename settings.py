@@ -111,11 +111,11 @@ class Settings:
         pygame.display.quit()       # close current display
         # reset current screen (Surface)
         self.screen = pygame.display.set_mode(
-            (self.screen_width, self.screen_height) )
+            (self.screen_width, self.screen_height))
         # get actual window size
         (self.act_w, self.act_h) = pygame.display.get_window_size()
         self.set_starfield()
-        self.screen_dist_scale = self.act_h * rad_scale / EARTH_RADIUS
+        self.screen_dist_scale = self.act_h * self.rad_scale / EARTH_RADIUS
 
     def set_bgcolor(self, red, green, blue):
         """ Set background color """

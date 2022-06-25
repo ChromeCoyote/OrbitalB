@@ -2,7 +2,7 @@
 
 from asyncio.windows_events import NULL
 from tkinter.font import families
-import pygame, math
+import pygame, math, random
 import settings, cosmos, cannonball
 
 DEFAULT_TANK_SCREENRAD = 3      # default tank screen radius
@@ -22,6 +22,9 @@ DEFAULT_FIRING_ANGLE = math.pi / 4       # initial firing angle in radians
 
 FUSE_THRESHOLD = 10000                 # threshold for fuse
 EXPLODE_THRESHOLD = 10000              # threshohld for explosion
+
+# don't select a color every explode tick 
+SKIP_COLOR = 1000
 
 
 class Tank (cosmos.Celestial):
@@ -69,6 +72,8 @@ class Tank (cosmos.Celestial):
         self.num_balls = 0
 
         self.set_surface_pos()     # initalize x, y posistion
+
+        # self.ball_force 
 
     def fix_launch_velocity(self):
         if self.launch_speed < 0:
@@ -164,8 +169,6 @@ class Tank (cosmos.Celestial):
     def check_balls(self):
         """ Check status of active balls """
 
-        remove_us = NULL
-
         for ball in self.balls:
             if ball.active:
                 if not ball.armed:
@@ -176,6 +179,8 @@ class Tank (cosmos.Celestial):
                 ball.check_impact(self.celestials)
             
             if ball.exploding:
+                if not (ball.explode_timer % SKIP_COLOR):
+                    ball.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
                 ball.explode_timer += 1
                 if ball.explode_timer > EXPLODE_THRESHOLD:
                     ball.exploding = False
@@ -190,9 +195,7 @@ class Tank (cosmos.Celestial):
         blew_up = False
         for ball in self.balls:
             if ball.active and ball.armed and not blew_up:
-                ball.active = False
-                ball.armed = False
-                ball.exploding = True
+                ball.explode()
                 blew_up = True
         
         return blew_up

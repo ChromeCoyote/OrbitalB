@@ -3,18 +3,6 @@
 import math, pygame, random, sys
 import settings, cosmos, tank, cannonball
 
-DEFAULT_FONT_SIZE = 24
-
-CHAMBER_BALL = pygame.K_RETURN
-FIRE_BALL = pygame.K_SPACE
-INCREASE_ANGLE = pygame.K_UP
-DECREASE_ANGLE = pygame.K_DOWN
-INCREASE_SPEED = pygame.K_KP_PLUS
-DECREASE_SPEED = pygame.K_KP_MINUS
-MOVE_TANK_CW = pygame.K_RIGHT
-MOVE_TANK_CCW = pygame.K_LEFT
-DETONATE_BALL = pygame.K_DELETE
-
 class Engine:
     """ Main game engine """
     def __init__(self, sts):
@@ -24,7 +12,7 @@ class Engine:
         self.tanks = []              # empty list with all tanks
 
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont(None, DEFAULT_FONT_SIZE)
+        self.font = pygame.font.SysFont(None, settings.DEFAULT_FONT_SIZE)
         self.screen_rect = self.sts.screen.get_rect()
         self.time = 0
     
@@ -85,35 +73,35 @@ class Engine:
                 
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
-                if event.key == CHAMBER_BALL:
+                if event.key == settings.CHAMBER_BALL:
                     if not self.tanks[0].chamber_ball():
                         if self.sts.debug:
                             print("\nError chambering ball, already one in chamber...")
-                elif event.key == FIRE_BALL:
+                elif event.key == settings.FIRE_BALL:
                     if not self.tanks[0].fire_ball():
                         if self.sts.debug:
                             print("\nError firing ball:  none chambered")
-                elif event.key == INCREASE_ANGLE and self.tanks[0].chambered_ball:
+                elif event.key == settings.INCREASE_ANGLE and self.tanks[0].chambered_ball:
                     self.tanks[0].launch_angle += self.tanks[0].radian_step
                     self.tanks[0].fix_launch_velocity()
                     # print("\n")
                     # ball.display_ball_values()
-                elif event.key == DECREASE_ANGLE and self.tanks[0].chambered_ball:
+                elif event.key == settings.DECREASE_ANGLE and self.tanks[0].chambered_ball:
                     self.tanks[0].launch_angle -= self.tanks[0].radian_step
                     self.tanks[0].fix_launch_velocity()
                     # print("\n")
                     # ball.display_ball_values()
-                elif event.key == INCREASE_SPEED and self.tanks[0].chambered_ball:
+                elif event.key == settings.INCREASE_SPEED and self.tanks[0].chambered_ball:
                     self.tanks[0].launch_speed += self.tanks[0].speed_step
                     self.tanks[0].fix_launch_velocity()
-                elif event.key == DECREASE_SPEED and self.tanks[0].chambered_ball:
+                elif event.key == settings.DECREASE_SPEED and self.tanks[0].chambered_ball:
                     self.tanks[0].launch_speed -= self.tanks[0].speed_step
                     self.tanks[0].fix_launch_velocity()
-                elif event.key == MOVE_TANK_CCW and not self.tanks[0].chambered_ball:
+                elif event.key == settings.MOVE_TANK_CCW and not self.tanks[0].chambered_ball:
                     self.tanks[0].pos_angle += self.tanks[0].radian_step
                     self.tanks[0].set_surface_pos()
-                elif event.key == MOVE_TANK_CW and not self.tanks[0].chambered_ball:
+                elif event.key == settings.MOVE_TANK_CW and not self.tanks[0].chambered_ball:
                     self.tanks[0].pos_angle -= self.tanks[0].radian_step
                     self.tanks[0].set_surface_pos()
-                elif event.key == DETONATE_BALL:
-                    self.tanks[0].detonate_ball()    
+                elif event.key == settings.DETONATE_BALL:
+                    self.tanks[0].detonate_ball()

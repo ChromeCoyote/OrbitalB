@@ -1,27 +1,105 @@
 # Data and functions for the world and moon (mass, radius, etc.)
 
+# from locale import normalize
 import math
 import settings
 import pygame
 import numpy
+import random
 
-DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
+def rotate_vector(x, y, ang):
+    cosang = math.cos(ang)
+    sinang = math.sin(ang)
+
+    x2 = cosang*x - sinang*y
+    y2 = sinang*x + cosang*y
+
+    return(x2, y2)
+
+def normalize(r):
+        """ normalize given vector """
+        mag = math.sqrt(r[0]**2 + r[1]**2)
+        if mag == 0:
+            [returnx, returny] = [0, 0]
+        else:
+            [returnx, returny] = numpy.multiply(1/mag, r)
+        return (returnx, returny)
 
 def bounce_v(m1, m2, x1, x2, v1, v2):
     """ Calculate new velocity for body 1 """
     # set up scalar factor
-    factor1 = ( (2 * m1) / (m1 + m2) )
-    factor1 /= ( (x1[0] - x2[0])**2 + (x1[1] - x2[1])**2 )
-    factor1 *= numpy.dot( numpy.subtract(v1, v2), \
-        numpy.subtract(x1, x2) )
-    print(f"{factor1}")
+    j1 = normalize(numpy.subtract(x2,x1))
+    j2 = normalize(numpy.subtract(x1,x2))
+    
+    factor1 = numpy.dot(j1, numpy.subtract(v2, v1))
+    factor1 *= ( 2 / (m1*(1/m1 + 1/m2)) )
+
+    factor2 = numpy.dot(j2, numpy.subtract(v1, v2))
+    factor2 *= ( 2 / (m2*(1/m1 + 1/m2)) )
 
     # calculate new velocities after reflection
-    vel1 = numpy.subtract(v1, numpy.array(
-        numpy.subtract(x1, x2))*factor1)
+    vel1 = numpy.add(v1, numpy.multiply(factor1, j1))
+    vel2 = numpy.add(v2, numpy.multiply(factor2, j2))
 
-    return vel1
+    return (vel1, vel2)
 
+def break_celestial(broke_body, celestials):
+    if broke_body.radius >= broke_body.sts.crit_radius:
+        broke_body.radius /= 2
+        broke_body.get_mass()
+        broke_body.set_screen_radius()
+        if broke_body.sts.debug:
+            print(f"\n{broke_body.name} has been shrunk by another...")
+            broke_body.display_values()
+
+        celestials.append(Celestial(broke_body.sts))
+        celestials[-1].set_attr(
+            (broke_body.name + f'-{random.randint(0, 10000)}'), False, 
+                broke_body.density, broke_body.radius, broke_body.color)
+        celestials[-1].vx = broke_body.vx
+        celestials[-1].vy = broke_body.vy
+        celestials[-1].x = broke_body.x
+        celestials[-1].y = broke_body.y
+        if broke_body.sts.debug:
+            print(f"\n{celestials[-1].name} has been created by another...")
+            celestials[-1].display_values()
+
+        (normx, normy) = normalize([broke_body.vx, broke_body.vy])
+        (normx, normy) = rotate_vector(normx, normy, -math.pi/2)
+        normx *= (broke_body.radius / 2)
+        normy *= (broke_body.radius / 2)
+        broke_body.x -= normx
+        broke_body.y -= normy
+        broke_body.get_screenxy()
+        (broke_body.vx, broke_body.vy) = rotate_vector(
+            broke_body.vx, broke_body.vy, -math.pi/4)
+        if broke_body.sts.debug:
+            print(f"\nNew values for {broke_body.name}:")
+            broke_body.display_values()
+        celestials[-1].x += normx
+        celestials[-1].y += normy
+        celestials[-1].get_screenxy()
+        (celestials[-1].vx, celestials[-1].vy) = rotate_vector(
+            celestials[-1].vx, celestials[-1].vy, math.pi/4)
+        if broke_body.sts.debug:
+            print(f"\nNew values for {celestials[-1].name}:")
+            celestials[-1].display_values()
+    elif not broke_body.homeworld:
+        broke_body.active = False
+        if broke_body.sts.debug:
+            print(f"{broke_body.name} has been marked for destruction by another...")
+
+
+def check_celestials(celestials):
+    for celestial in celestials[:]:
+        if not celestial.active and not celestial.homeworld:
+            if celestials[0].sts.debug:
+                print(f"\n{celestial.name} being destroyed...")    
+            celestials.remove(celestial)
+            if celestials[0].sts.debug:
+                print(f"Success!")    
+                
+    
 class Celestial:
     """ Class to hold data & functions for worlds & moons """
 
@@ -54,7 +132,7 @@ class Celestial:
         # attributes of the body for display on the screen
         self.screen_x = 0
         self.screen_y = 0
-        self.color = DEFAULT_BODY_COLOR
+        self.color = settings.DEFAULT_BODY_COLOR
 
         # gets current resolution values for current windows.
         # If no windows is inialized, sets resolution to 0, which causes
@@ -68,8 +146,11 @@ class Celestial:
         self.get_screenxy()
 
         # set screen radius
-        self.screen_rad = self.radius * sts.screen_dist_scale
+        self.set_screen_radius()
 
+    def set_screen_radius(self):
+        self.screen_rad = self.radius * self.sts.screen_dist_scale
+    
     def get_mass(self):
         """ Sets mass of body based on radius and density """
         vol = (4/3)*math.pi*(self.radius*1000)**3      # in cubic meters
@@ -107,21 +188,10 @@ class Celestial:
         """Get vector pointing from x and y to body"""
         return (x - self.x, y - self.y)
 
-    def normalize(self, x, y):
-        """ normalize given vector """
-        mag = math.sqrt(x**2 + y**2)
-        if mag == 0:
-            returnx = 0
-            returny = 0
-        else:
-            returnx = x / mag
-            returny = y / mag
-        return (returnx, returny)
-    
     def get_unit(self, x, y):
         """Get unit vector pointing from x and y to body"""
         [unit_x, unit_y] = self.get_vect(x, y)
-        return self.normalize(unit_x, unit_y)
+        return normalize([unit_x, unit_y])
 
     def set_attr(self, name, home, density, radius, color):
         """Set name, mass and radius for the body"""
@@ -130,7 +200,7 @@ class Celestial:
         self.density = density
         self.radius = radius
         self.mass = self.get_mass()
-        self.screen_rad = self.radius * self.sts.screen_dist_scale
+        self.set_screen_radius()
         self.color = color
 
     def set_screenxy(self, X, Y):
@@ -209,50 +279,104 @@ class Celestial:
         
         return hit
 
+    def fix_overlap(self, celestial):
+        """ Fix overlapping celestials """
+        # calculated relative distance
+        rel_dist = self.get_dist(celestial.x, celestial.y)
+        # add together radii
+        combo_rad = self.radius + celestial.radius
+        if rel_dist < combo_rad:
+            (addx, addy) = self.get_unit(celestial.x, celestial.y)
+            addx *= -1
+            addy *= -1
+            self.x += addx * abs(rel_dist - combo_rad)
+            self.y += addy * abs(rel_dist - combo_rad)
+            self.get_screenxy()
+    
     def bounce(self, celestials):
         """ Check for collision & reflect if so """
         
-        addx = 0                # for adjusting position vectors
-        addy = 0
-
         for celestial in celestials:
             if celestial.name != self.name and self.check_hit(celestial):
                     # first, reset coordinates to eliminate overlap
-                    (addx, addy) = self.get_unit(celestial.x, celestial.y)
-                    addx = -addx
-                    addy = -addy
-                    rel_dist = self.get_dist(celestial.x, celestial.y)
-                    combo_rad = self.radius + celestial.radius
-                    self.x += addx * abs(rel_dist - combo_rad)
-                    self.y += addy * abs(rel_dist - combo_rad)
-                    self.get_screenxy()
-
-                    oldvx = self.vx     # placeholders for old self velocity
-                    oldvy = self.vy
-
+                    self.fix_overlap(celestial)
                     # assign new velocities and convert to km, km/s
-                    # if self.homeworld == False:
-                    (self.vx, self.vy) = bounce_v( \
+                    ([self.vx, self.vy], [celestial.vx, celestial.vy]) = bounce_v( \
                         self.mass, celestial.mass, \
-                        (self.x, self.y), \
-                        (celestial.x, celestial.y), \
-                        (self.vx, self.vy), \
-                        (celestial.vx, celestial.vy) )
+                        [self.x, self.y], \
+                        [celestial.x, celestial.y], \
+                        [self.vx, self.vy], \
+                        [celestial.vx, celestial.vy] )
                     self.vx *= math.sqrt(self.sts.energy_loss)
                     self.vy *= math.sqrt(self.sts.energy_loss)
-                    # if celestial.homeworld == False:
-                    (celestial.vx, celestial.vy) = bounce_v(
-                        celestial.mass, self.mass, \
-                        (celestial.x, celestial.y), \
-                        (self.x, self.y), \
-                        (celestial.vx, celestial.vy), \
-                        (oldvx, oldvy) )
                     celestial.vx *= math.sqrt(self.sts.energy_loss)
                     celestial.vy *= math.sqrt(self.sts.energy_loss)
 
+    def break_self(self, celestials):
+        if self.radius >= self.sts.crit_radius:                       
+            self.radius /= 2
+            self.get_mass()
+            self.set_screen_radius()
+            if self.sts.debug:
+                print(f"\n{self.name} has shrunk itself...")
+                self.display_values()
+        
+            celestials.append(Celestial(self.sts))
+            celestials[-1].set_attr(
+                (self.name + f'-{random.randint(0, 10000)}'), False, 
+                    self.density, self.radius, self.color)
+            celestials[-1].vx = self.vx
+            celestials[-1].vy = self.vy
+            celestials[-1].x = self.x
+            celestials[-1].y = self.y
+            if self.sts.debug:
+                print(f"\n{celestials[-1].name} has been created by {self.name}...")
+                celestials[-1].display_values()
+           
+            (normx, normy) = normalize([self.vx, self.vy])
+            (normx, normy) = rotate_vector(normx, normy, -math.pi/2)
+            normx *= self.radius
+            normy *= self.radius
+            self.x -= normx
+            self.y -= normy
+            self.get_screenxy()
+            (self.vx, self.vy) = rotate_vector(
+                self.vx, self.vy, -math.pi/4)
+            if self.sts.debug:
+                print(f"\nNew vlues for {self.name}:")
+                self.display_values()
+            celestials[-1].x += normx
+            celestials[-1].y += normy
+            celestials[-1].get_screenxy()
+            (celestials[-1].vx, celestials[-1].vy) = rotate_vector(
+                celestials[-1].vx, celestials[-1].vy, math.pi/4)
+            if self.sts.debug:
+                print(f"\nNew valuse for {celestials[-1].name}")
+                celestials[-1].display_values()
+        elif not self.homeworld:
+            self.active = False
+            if self.sts.debug:
+                print(f"\n{self.name} has marked itself for destruction...")
+
+    def shatter(self, celestials):
+        """ Check for collision, break apart and bounce if so """
+        for celestial in celestials[:]:
+            if celestial.name != self.name and self.check_hit(celestial):
+                    if self.mass > (celestial.mass * self.sts.crit_mass) and not celestial.homeworld:
+                        break_celestial(celestial, celestials)
+                    elif (self.mass * self.sts.crit_mass) < celestial.mass and not self.homeworld:
+                        self.break_self(celestials)
+                    # fix overlap if any
+                    self.fix_overlap(celestial)
+                                                               
     def move(self, celestials):
         """ Move object based on current velocity """
         self.accelerate(celestials)
         self.x += self.vx * self.sts.tres
         self.y += self.vy * self.sts.tres
         self.get_screenxy()
+
+    def get_collision_point(self, celestial):
+        collide_x = ( (self.x * celestial.radius) + (celestial.x * self.radius) ) / (self.radius + celestial.radius)
+        collide_y = ( (self.y * celestial.radius) + (celestial.y * self.radius) ) / (self.radius + celestial.radius)
+        return (collide_x, collide_y)

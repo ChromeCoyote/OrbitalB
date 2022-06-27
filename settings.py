@@ -31,7 +31,66 @@ EARTH_RAD_SCALE = 0.1   # A body with Earth's radius will take up this
                         # amount of the screen
 
 # amount of energy lost when there is a collision
-DEFAULT_ENERGY_LOSS = 0.7
+DEFAULT_ENERGY_LOSS = 1
+DEFAULT_CRIT_RADIUS = LUNA_RADIUS / 4      # critical radius under which celestials die
+DEFAULT_CRIT_EXPLODE_RADIUS = LUNA_RADIUS        # cannonballs blow up the moon!
+# mass of collidiing object has to be this many times more to cause shatter
+DEFAULT_CRIT_MASS = 1        
+
+DEFAULT_TANK_SCREENRAD = 3      # default tank screen radius
+DEFAULT_TANK_COLOR = (0,255,0)  # default tank color, lime green?
+DEFAULT_ESCAPE_FRAC = 0.5       # default cannonball speed as fraction
+
+DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
+DEFAULT_WARM_ARROW_COLOR = (255, 255, 0)
+DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)
+HOT_THRESHOLD = 0.9                         # thresholds for arrows
+COLD_THRESHOLD = 0.3
+
+DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
+DEFAULT_SPEED_DIV = 100        
+DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radians
+DEFAULT_FIRING_ANGLE = math.pi / 4       # initial firing angle in radians
+
+FUSE_THRESHOLD = 100                 # threshold for fuse
+EXPLODE_THRESHOLD = 100              # threshohld for explosion
+
+# don't select a color every explode tick 
+SKIP_COLOR = 1000
+
+DEFAULT_BALL_COLOR = (255, 255, 255)    # white
+DEFAULT_ARMED_COLOR = (255, 69, 0)        # orange
+DEFAULT_BALL_SCREEN_RAD = 2     # small yet visible
+# scaling for changes to velocity per key press
+DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
+DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
+DEFAULT_WARM_ARROW_COLOR = (255, 255, 0)
+DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)
+HOT_THRESHOLD = 0.9                         # thresholds for arrows
+COLD_THRESHOLD = 0.3
+
+# Energy release by Czar Bomba in kg*km^2*s^(-2)
+CZAR_BOMBA_ENERGY = 2e11
+
+# Cannonballs have as much energy as 1 million Czar Bombs
+DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e8
+
+DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 4 # explosion is 1/4 radius of Moon!
+
+DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
+
+DEFAULT_FONT_SIZE = 24
+
+CHAMBER_BALL = pygame.K_RETURN
+FIRE_BALL = pygame.K_SPACE
+INCREASE_ANGLE = pygame.K_UP
+DECREASE_ANGLE = pygame.K_DOWN
+INCREASE_SPEED = pygame.K_KP_PLUS
+DECREASE_SPEED = pygame.K_KP_MINUS
+MOVE_TANK_CW = pygame.K_RIGHT
+MOVE_TANK_CCW = pygame.K_LEFT
+DETONATE_BALL = pygame.K_DELETE
+
 
 def rand_clr():
     """ Gets color of star based on galactic distribution """
@@ -75,6 +134,9 @@ class Settings:
 
         self.stardensity = DEFAULT_STAR_DENSITY
         self.energy_loss = DEFAULT_ENERGY_LOSS
+        self.crit_mass = DEFAULT_CRIT_MASS
+        self.crit_radius = DEFAULT_CRIT_RADIUS
+        self.crit_explode_radius = DEFAULT_CRIT_EXPLODE_RADIUS*1.01
 
         # declaration of Surface object
         self.screen = pygame.display.set_mode(

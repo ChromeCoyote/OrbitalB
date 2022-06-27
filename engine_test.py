@@ -9,6 +9,8 @@ MainEngine = engine.Engine(MainSettings)
 MainEngine.create_homeworld()
 MainEngine.create_moon()
 MainEngine.create_moon()
+MainEngine.create_moon()
+MainEngine.create_moon()
 MainEngine.create_tank()
 
 while True:
@@ -23,7 +25,10 @@ while True:
         
         for body in MainEngine.celestials:
             body.move(MainEngine.celestials)
-            # body.bounce(MainEngine.celestials)
+            body.shatter(MainEngine.celestials)
+            body.bounce(MainEngine.celestials)
+                    
+        cosmos.check_celestials(MainEngine.celestials)
         
         MainEngine.tanks[0].move_balls()
         MainEngine.tanks[0].check_balls()

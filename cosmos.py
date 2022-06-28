@@ -380,3 +380,7 @@ class Celestial:
         collide_x = ( (self.x * celestial.radius) + (celestial.x * self.radius) ) / (self.radius + celestial.radius)
         collide_y = ( (self.y * celestial.radius) + (celestial.y * self.radius) ) / (self.radius + celestial.radius)
         return (collide_x, collide_y)
+
+    def displace(self, displacement):
+        [self.x, self.y] = numpy.add([self.x, self.y], displacement)
+        self.get_screenxy()

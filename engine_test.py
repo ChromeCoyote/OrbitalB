@@ -43,6 +43,8 @@ while not MainEngine.game_over:
             body.bounce(MainEngine.celestials)
                     
         cosmos.check_celestials(MainEngine.celestials)
+
+        MainEngine.center_homeworld()
         
         for tank in MainEngine.tanks:
             tank.move_balls()
@@ -77,28 +79,32 @@ while not MainEngine.game_over:
 # ENDGAME SCREEN *******************************************
 wait4me = True
 
-MainEngine.create_universe()
-MainEngine.draw_objects()
-
-MainEngine.set_font_size(48)
-
-if MainEngine.tanks and MainEngine.tanks[0].winner:
-        MainEngine.display_game_message(
-                f"{MainEngine.tanks[0].name} wins!", MainEngine.screen_rect.center, MainEngine.tanks[0].color)
-elif not MainEngine.tanks:
-    MainEngine.display_game_message(
-            "All tanks destroyed!", MainEngine.screen_rect.center, settings.DEFAULT_FONT_COLOR)
-
-MainEngine.set_font_size(64)
-
 while wait4me:
     MainEngine.ticktock()
+
+    MainEngine.create_universe()
 
     events = pygame.event.get()
     for event in events:
         if event.type == pygame.KEYDOWN:
             wait4me = False
-    
+
+    MainEngine.set_font_size(48)
+    if MainEngine.tanks and MainEngine.tanks[0].winner:
+            for ball in MainEngine.tanks[0].balls:
+                if ball.exploding:
+                    ball.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+
+            MainEngine.draw_objects()
+           
+            MainEngine.display_game_message(
+                    f"{MainEngine.tanks[0].name} wins!", MainEngine.screen_rect.center, MainEngine.tanks[0].color)
+    elif not MainEngine.tanks:
+        MainEngine.draw_objects()
+        MainEngine.display_game_message(
+                "All tanks destroyed!", MainEngine.screen_rect.center, settings.DEFAULT_FONT_COLOR)
+
+    MainEngine.set_font_size(64)
     MainEngine.display_game_message(
             f"GAME OVER", MainEngine.screen_rect.midbottom, (random.randint(0,255), random.randint(0,255), random.randint(0,255)))
     pygame.display.flip()

@@ -2,6 +2,7 @@ from pickle import TRUE
 import pygame
 import random
 import math
+import numpy
 
 # real world variables
 EARTH_RADIUS = 6_371    # in kilometers
@@ -33,7 +34,7 @@ EARTH_RAD_SCALE = 0.1   # A body with Earth's radius will take up this
 # amount of energy lost when there is a collision
 DEFAULT_ENERGY_LOSS = 1
 DEFAULT_CRIT_RADIUS = LUNA_RADIUS / 4      # critical radius under which celestials die
-DEFAULT_CRIT_EXPLODE_RADIUS = LUNA_RADIUS        # cannonballs blow up the moon!
+DEFAULT_CRIT_EXPLODE_MASS = LUNA_MASS        # cannonballs blow up the moon!
 # mass of collidiing object has to be this many times more to cause shatter
 DEFAULT_CRIT_MASS = 1        
 
@@ -51,13 +52,13 @@ COLD_THRESHOLD = 0.3
 DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
 DEFAULT_SPEED_DIV = 100        
 DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radians
-DEFAULT_FIRING_ANGLE = math.pi / 4       # initial firing angle in radians
+DEFAULT_FIRING_ANGLE = 0       # initial firing angle in radians
 
 FUSE_THRESHOLD = 100                 # threshold for fuse
-EXPLODE_THRESHOLD = 100              # threshohld for explosion
+EXPLODE_THRESHOLD = 1000              # threshohld for explosion
 
 # don't select a color every explode tick 
-SKIP_COLOR = 1000
+SKIP_COLOR = 100
 
 DEFAULT_BALL_COLOR = (255, 255, 255)    # white
 DEFAULT_ARMED_COLOR = (255, 69, 0)        # orange
@@ -74,9 +75,9 @@ COLD_THRESHOLD = 0.3
 CZAR_BOMBA_ENERGY = 2e11
 
 # Cannonballs have as much energy as 1 million Czar Bombs
-DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e8
+DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12
 
-DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 4 # explosion is 1/4 radius of Moon!
+DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 2 # explosion is 1/4 radius of Moon!
 
 DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
 
@@ -138,7 +139,7 @@ class Settings:
         self.energy_loss = DEFAULT_ENERGY_LOSS
         self.crit_mass = DEFAULT_CRIT_MASS
         self.crit_radius = DEFAULT_CRIT_RADIUS
-        self.crit_explode_radius = DEFAULT_CRIT_EXPLODE_RADIUS*1.01
+        self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
         # declaration of Surface object
         self.screen = pygame.display.set_mode(
@@ -208,3 +209,14 @@ class Settings:
         for ind in range(len(self.starfield_xy)):
             self.screen.set_at(self.starfield_xy[ind], \
                 self.starfield_clr[ind])
+
+    def restore_screen(self):
+         # declaration of Surface object
+        self.screen = pygame.display.set_mode(
+            (self.screen_width, self.screen_height) )
+        # get actual window size
+        (self.act_w, self.act_h) = pygame.display.get_window_size()
+
+    def destroy_screen(self):
+        """prevent errors with deepcopy()"""
+        del self.screen

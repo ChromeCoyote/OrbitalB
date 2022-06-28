@@ -2,11 +2,12 @@
 
 from asyncio.windows_events import NULL
 from tkinter.font import families
-import pygame, math, random
+import pygame, math, random, numpy
 import settings, cosmos, cannonball
 
 def check_tanks(tanks):
     destroyed_player_tanks = []
+    
     for tank in tanks[:]:
         if not tank.active:
             if tanks[0].sts.debug:
@@ -14,23 +15,23 @@ def check_tanks(tanks):
             if tank.balls:
                 if tank != tanks[0]:
                 # give destroyed tank's balls to first tank's balls
-                    tanks[0].balls.append(tank.balls)
-                if tanks[0].sts.debug:
-                    print(f"\nBalls from {tank.name} given to first tank's ball list.")
+                    tank.give_balls(tanks[0])
+                    if tanks[0].sts.debug:
+                        print(f"\nBalls from {tank.name} given to first tank's ball list.")
                 else:
                 # give destroyed tank's balls to last tank's balls
-                    tanks[-1].balls.append(tank.balls)
+                    tank.give_balls(tanks[-1])
                     if tanks[0].sts.debug:
                         print(f"\nBalls from {tank.name} given to last tank's ball list.")
             if tank.player_tank:
                 destroyed_player_tanks.append(tank)
             tanks.remove(tank)
             if tanks[0].sts.debug:
-                print(f"Success!")
+                print(f"Tank successfully destroyed!")
 
     if not destroyed_player_tanks:
         destroyed_player_tanks = False
-    
+
     return destroyed_player_tanks
  
 class Tank (cosmos.Celestial):
@@ -80,7 +81,7 @@ class Tank (cosmos.Celestial):
         self.player_tank = True     # default player tank
         self.winner = False         # not a winner yet!
 
-        self.set_surface_pos()     # initalize x, y posistion
+        self.get_surface_pos()     # initalize x, y posistion
 
         self.chamber_ball_key = settings.CHAMBER_BALL
         self.fire_ball_key = settings.FIRE_BALL
@@ -124,7 +125,7 @@ class Tank (cosmos.Celestial):
         
         return chamber_okay
     
-    def set_surface_pos(self):
+    def get_surface_pos(self):
         """ set launch point based on position angle (pos_angle) """
         self.x = self.homeworld.radius * math.cos(self.pos_angle) \
             + self.homeworld.x
@@ -144,8 +145,8 @@ class Tank (cosmos.Celestial):
             self.arrow_color = settings.DEFAULT_WARM_ARROW_COLOR
         
     def get_launch_velocity(self):
-        vx = self.launch_speed * math.cos(self.launch_angle)
-        vy = self.launch_speed * math.sin(self.launch_angle)
+        vx = self.launch_speed * math.cos(self.launch_angle) + self.homeworld.vx
+        vy = self.launch_speed * math.sin(self.launch_angle) + self.homeworld.vy
         return (vx, vy)
     
     def chamber_ball(self):
@@ -190,22 +191,25 @@ class Tank (cosmos.Celestial):
 
         for ball in self.balls:
             if ball.active:
-                if not ball.armed:
+                if not ball.armed and not ball.exploding:
                     ball.fuse_timer += 1
                     if ball.fuse_timer > settings.FUSE_THRESHOLD:
                         ball.armed = True
                         ball.color = settings.DEFAULT_ARMED_COLOR
+                if ball.exploding:
+                    if ball.stuck_to_celestial:
+                        ball.get_surface_pos()
+                    if not (ball.explode_timer % settings.SKIP_COLOR):
+                        ball.color = (
+                            random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                    ball.explode_timer += 1
+                    if ball.explode_timer > settings.EXPLODE_THRESHOLD:
+                        ball.exploding = False
+                        ball.active = False
                 ball.check_impact(self.celestials, tanks)
-            
-            if ball.exploding:
-                if not (ball.explode_timer % settings.SKIP_COLOR):
-                    ball.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                ball.explode_timer += 1
-                if ball.explode_timer > settings.EXPLODE_THRESHOLD:
-                    ball.exploding = False
                    
         for ball in self.balls[:]:
-            if not ball.active and not ball.exploding and not ball.chambered:
+            if not ball.active and not ball.chambered:
                 self.balls.remove(ball)
         
         self.num_balls = len(self.balls)
@@ -221,13 +225,14 @@ class Tank (cosmos.Celestial):
 
     def draw_launch_v(self):
         self.set_arrow_color()
-        (tempvx, tempvy) = self.get_launch_velocity()
-        (tempvx, tempvy) = cosmos.normalize([tempvx, tempvy])
-        tempvx *= self.homeworld.radius * (self.launch_speed / self.escape_v)
-        tempvx += self.x
-        tempvy *= self.homeworld.radius * (self.launch_speed / self.escape_v)
-        tempvy += self.y
-        (tip_x, tip_y) = super().set_screenxy(tempvx, tempvy)
+        [tip_x, tip_y] = self.get_launch_velocity()
+        [tip_x, tip_y] = numpy.subtract(
+            [tip_x, tip_y], [self.homeworld.vx, self.homeworld.vy])
+        [tip_x, tip_y] = cosmos.normalize([tip_x, tip_y])
+        tip_x *= self.homeworld.radius * (self.launch_speed / self.escape_v)
+        tip_y *= self.homeworld.radius * (self.launch_speed / self.escape_v)
+        [tip_x, tip_y] = numpy.add([tip_x, tip_y], [self.x, self.y])
+        [tip_x, tip_y] = super().set_screenxy(tip_x, tip_y)
         pygame.draw.line(self.sts.screen, self.arrow_color, [self.screen_x, self.screen_y], [tip_x, tip_y])
         return (tip_x, tip_y)
 
@@ -259,4 +264,11 @@ class Tank (cosmos.Celestial):
         self.name = "Enemy Tank"
         self.color = settings.DEFAULT_ENEMY_TANK_COLOR
         self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
-        self.set_surface_pos()
+        self.get_surface_pos()
+
+    def give_balls(self, tank):
+        if self.balls:
+            for ball in self.balls:
+                tank.balls.append(ball)
+    
+        

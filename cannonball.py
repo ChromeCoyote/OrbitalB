@@ -1,5 +1,6 @@
 # Code for projectile
 
+import numpy
 import cosmos
 import settings
 import pygame
@@ -43,6 +44,9 @@ class Cannonball(cosmos.Celestial):
         self.vx = 0
         self.vy = 0
 
+        self.stuck_to_celestial = False
+        self.pos_angle = 0
+
         # set by another class/function
         self.explode_energy = settings.DEFAULT_EXPLODE_ENERGY
         # self.explode_energy = 0
@@ -59,7 +63,7 @@ class Cannonball(cosmos.Celestial):
         self.speed = math.sqrt(self.vx**2 + self.vy**2)
             
     def explode(self):
-        self.active = False
+        # self.active = False
         self.armed = False
         self.exploding = True
         self.radius = self.explode_radius
@@ -68,6 +72,21 @@ class Cannonball(cosmos.Celestial):
     def set_explode_force_mag(self, time):
         self.explode_force_mag = self.explode_energy / time
 
+    def get_surface_pos(self):
+        """ set launch point based on position angle (pos_angle) """
+        self.x = self.stuck_to_celestial.radius * math.cos(self.pos_angle) \
+            + self.stuck_to_celestial.x
+        self.y = self.stuck_to_celestial.radius * math.sin(self.pos_angle) \
+            + self.stuck_to_celestial.y
+        super().get_screenxy()
+
+    def stick_to_celestial(self, celestial):
+        if not self.stuck_to_celestial:
+            self.stuck_to_celestial = celestial
+            (stuck_x, stuck_y) = numpy.subtract(
+                [self.x, self.y], [self.stuck_to_celestial.x, self.stuck_to_celestial.y])
+            self.pos_angle = math.atan2(stuck_y, stuck_x)
+    
     def check_impact(self, celestials, tanks):
         hit = False
        
@@ -77,18 +96,20 @@ class Cannonball(cosmos.Celestial):
                 # self.homeworld = celestial      # changes homeworld for explosion
                 if self.armed:
                     self.explode()
+                elif self.exploding:
+                    if not self.stuck_to_celestial:
+                        self.stick_to_celestial(celestial)
+                        (ax, ay) = super().get_unit(celestial.x, celestial.y)
+                        ax *= self.explode_force_mag
+                        ay *= self.explode_force_mag
+                        celestial.vx += ax * self.sts.tres
+                        celestial.vy += ay * self.sts.tres
+                        if celestial.mass < self.sts.crit_explode_mass:
+                            # self.stuck_to_celestial = False
+                            celestial.break_self(celestials)
                 else:
                     self.active = False
-
-                if self.exploding:
-                    (ax, ay) = super().get_unit(celestial.x, celestial.y)
-                    ax *= self.explode_force_mag
-                    ay *= self.explode_force_mag
-                    celestial.vx += ax * self.sts.tres
-                    celestial.vy += ay * self.sts.tres
-                    if celestial.radius < self.sts.crit_explode_radius:
-                        celestial.break_self(celestials)
-
+                
         for tank in tanks:
             if self.exploding and super().check_hit(tank):
                 hit = True

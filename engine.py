@@ -1,6 +1,10 @@
 # Main Game "Engine"
 
 import math, pygame, random, sys
+
+import numpy
+
+from numpy import multiply
 import settings, cosmos, tank, cannonball
 
 class Engine:
@@ -15,6 +19,8 @@ class Engine:
         self.font = pygame.font.SysFont(None, settings.DEFAULT_FONT_SIZE)
         self.screen_rect = self.sts.screen.get_rect()
         self.time = 0
+
+        self.displacement = (0,0)
 
         # flags for game over, win
         self.game_over = False
@@ -106,10 +112,10 @@ class Engine:
                             tank.fix_launch_velocity()
                         elif event.key == tank.move_CCW_key and not tank.chambered_ball:
                             tank.pos_angle += tank.radian_step
-                            tank.set_surface_pos()
+                            tank.get_surface_pos()
                         elif event.key == tank.move_CW_key and not tank.chambered_ball:
                             tank.pos_angle -= tank.radian_step
-                            tank.set_surface_pos()
+                            tank.get_surface_pos()
                         elif event.key == tank.detonate_ball_key:
                             tank.detonate_ball()
 
@@ -118,7 +124,6 @@ class Engine:
             body.draw_bodycircle()
         
         for tank in self.tanks:
-            tank.set_surface_pos()
             tank.draw_bodycircle()
             if tank.chambered_ball:
                 tank.draw_launch_v()
@@ -162,3 +167,14 @@ class Engine:
             print("ERROR:  Invalid text location sent to dispay_game_message")
         
         self.sts.screen.blit(text_to_show, text_rect)
+
+    def center_homeworld(self):
+        if self.celestials[0].x or self.celestials[0].y:
+            self.displacement = numpy.multiply(
+                -1, [self.celestials[0].x, self.celestials[0].y])
+            for body in self.celestials:
+                body.displace(self.displacement)
+            for tank in self.tanks:
+                tank.get_surface_pos()
+                for ball in tank.balls:
+                    ball.displace(self.displacement)

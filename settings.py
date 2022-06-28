@@ -39,6 +39,7 @@ DEFAULT_CRIT_MASS = 1
 
 DEFAULT_TANK_SCREENRAD = 3      # default tank screen radius
 DEFAULT_TANK_COLOR = (0,255,0)  # default tank color, lime green?
+DEFAULT_ENEMY_TANK_COLOR = (255, 0, 255)    # enemy tank color, magenta
 DEFAULT_ESCAPE_FRAC = 0.5       # default cannonball speed as fraction
 
 DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
@@ -80,6 +81,7 @@ DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 4 # explosion is 1/4 radius of Moon!
 DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
 
 DEFAULT_FONT_SIZE = 24
+DEFAULT_FONT_COLOR = (255, 255, 255)    # white
 
 CHAMBER_BALL = pygame.K_RETURN
 FIRE_BALL = pygame.K_SPACE

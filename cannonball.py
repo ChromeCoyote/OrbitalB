@@ -68,7 +68,7 @@ class Cannonball(cosmos.Celestial):
     def set_explode_force_mag(self, time):
         self.explode_force_mag = self.explode_energy / time
 
-    def check_impact(self, celestials):
+    def check_impact(self, celestials, tanks):
         hit = False
        
         for celestial in celestials:
@@ -89,6 +89,13 @@ class Cannonball(cosmos.Celestial):
                     if celestial.radius < self.sts.crit_explode_radius:
                         celestial.break_self(celestials)
 
+        for tank in tanks:
+            if self.exploding and super().check_hit(tank):
+                hit = True
+                tank.active = False
+                if self.sts.debug:
+                    print(f"Tank {tank.name} has been hit!")
+                    
         return hit
 
     def display_ball_values(self):

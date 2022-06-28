@@ -5,6 +5,34 @@ from tkinter.font import families
 import pygame, math, random
 import settings, cosmos, cannonball
 
+def check_tanks(tanks):
+    destroyed_player_tanks = []
+    for tank in tanks[:]:
+        if not tank.active:
+            if tanks[0].sts.debug:
+                print(f"\n{tank.name} being destroyed...")    
+            if tank.balls:
+                if tank != tanks[0]:
+                # give destroyed tank's balls to first tank's balls
+                    tanks[0].balls.append(tank.balls)
+                if tanks[0].sts.debug:
+                    print(f"\nBalls from {tank.name} given to first tank's ball list.")
+                else:
+                # give destroyed tank's balls to last tank's balls
+                    tanks[-1].balls.append(tank.balls)
+                    if tanks[0].sts.debug:
+                        print(f"\nBalls from {tank.name} given to last tank's ball list.")
+            if tank.player_tank:
+                destroyed_player_tanks.append(tank)
+            tanks.remove(tank)
+            if tanks[0].sts.debug:
+                print(f"Success!")
+
+    if not destroyed_player_tanks:
+        destroyed_player_tanks = False
+    
+    return destroyed_player_tanks
+ 
 class Tank (cosmos.Celestial):
     """ Class for surface roaming tanks """
 
@@ -12,7 +40,7 @@ class Tank (cosmos.Celestial):
         """ Initialize variables for tank """
         super().__init__(sts)
 
-        self.name = 'Tank'
+        self.name = "Player Tank"
 
         self.radius = 0.1            # 100 m meter radius
         
@@ -49,7 +77,20 @@ class Tank (cosmos.Celestial):
         self.chambered_ball = False              # ball chambered or not
         self.num_balls = 0
 
+        self.player_tank = True     # default player tank
+        self.winner = False         # not a winner yet!
+
         self.set_surface_pos()     # initalize x, y posistion
+
+        self.chamber_ball_key = settings.CHAMBER_BALL
+        self.fire_ball_key = settings.FIRE_BALL
+        self.increase_angle_key = settings.INCREASE_ANGLE
+        self.decrease_angle_key = settings.DECREASE_ANGLE
+        self.increase_speed_key = settings.INCREASE_SPEED
+        self.decrease_speed_key = settings.DECREASE_SPEED
+        self.move_CCW_key = settings.MOVE_TANK_CCW
+        self.move_CW_key = settings.MOVE_TANK_CW
+        self.detonate_ball_key = settings.DETONATE_BALL
 
         # self.ball_force 
 
@@ -144,7 +185,7 @@ class Tank (cosmos.Celestial):
             if ball.active == True:
                 ball.move(self.celestials)
     
-    def check_balls(self):
+    def check_balls(self, tanks):
         """ Check status of active balls """
 
         for ball in self.balls:
@@ -154,7 +195,7 @@ class Tank (cosmos.Celestial):
                     if ball.fuse_timer > settings.FUSE_THRESHOLD:
                         ball.armed = True
                         ball.color = settings.DEFAULT_ARMED_COLOR
-                ball.check_impact(self.celestials)
+                ball.check_impact(self.celestials, tanks)
             
             if ball.exploding:
                 if not (ball.explode_timer % settings.SKIP_COLOR):
@@ -204,10 +245,18 @@ class Tank (cosmos.Celestial):
         print(f"The tip of the launch vectory on screen should be:  <{printx, printy}>.")
 
     def display_ball_stats(self):
-        print(f"Balls in memory:  {len(self.balls)}.")
-        print(f"Counted balls:  {self.num_balls}.")
+        print(f"Balls in memory for {self.name}:  {len(self.balls)}.")
+        print(f"Counted balls for {self.name}:  {self.num_balls}.")
         ball_number = 0
         for ball in self.balls:
             ball_number += 1
-            print(f"\nBall #{ball_number}:")
+            print(f"\nBall #{ball_number} of {self.name}:")
             ball.display_ball_values()
+
+    def set_enemy_tank(self):
+        """ Sets tank to an enemy """
+        self.player_tank = False
+        self.name = "Enemy Tank"
+        self.color = settings.DEFAULT_ENEMY_TANK_COLOR
+        self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
+        self.set_surface_pos()

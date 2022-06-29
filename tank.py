@@ -317,7 +317,7 @@ class Tank (cosmos.Celestial):
         if self.target:
             self.speed_guess = \
                 settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v * \
-                    ( self.get_dist(self.target.x, self.target.y)**2/(2*self.homeworld.radius)**2 )
+                    math.sqrt( self.get_dist(self.target.x, self.target.y)/(2*self.homeworld.radius) )
         else:
             self.speed_guess = random.uniform(
                 settings.SIMPLE_SPEED_GUESS_LOWER*self.escape_v, settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v)

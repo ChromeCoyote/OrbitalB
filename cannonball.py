@@ -25,7 +25,7 @@ class Cannonball(cosmos.Celestial):
         self.color = settings.DEFAULT_BALL_COLOR
 
         # find and setup stats for homeworld
-        self.homeworld = cosmos.Celestial(sts)
+        self.homeworld = False
         for body in celestials:
             if body.homeworld == True:
                 self.homeworld = body
@@ -39,6 +39,7 @@ class Cannonball(cosmos.Celestial):
 
         self.fuse_timer = 0
         self.explode_timer = 0
+        self.mass = settings.DEFAULT_CANNONBALL_MASS
 
         self.speed = 0
         self.vx = 0
@@ -87,10 +88,10 @@ class Cannonball(cosmos.Celestial):
                 [self.x, self.y], [self.stuck_to_celestial.x, self.stuck_to_celestial.y])
             self.pos_angle = math.atan2(stuck_y, stuck_x)
     
-    def check_impact(self, celestials, tanks):
+    def check_impact(self, tanks):
         hit = False
        
-        for celestial in celestials:
+        for celestial in self.celestials:
             if celestial.name != self.name and super().check_hit(celestial):
                 hit = True
                 # self.homeworld = celestial      # changes homeworld for explosion
@@ -106,7 +107,7 @@ class Cannonball(cosmos.Celestial):
                         celestial.vy += ay * self.sts.tres
                         if celestial.mass < self.sts.crit_explode_mass:
                             # self.stuck_to_celestial = False
-                            celestial.break_self(celestials)
+                            celestial.break_self(self.celestials)
                 else:
                     self.active = False
                 

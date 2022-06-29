@@ -56,6 +56,7 @@ DEFAULT_FIRING_ANGLE = 0       # initial firing angle in radians
 
 FUSE_THRESHOLD = 100                 # threshold for fuse
 EXPLODE_THRESHOLD = 1000              # threshohld for explosion
+DEFAULT_CANNONBALL_MASS = 1000      # default cannonball mass
 
 # don't select a color every explode tick 
 SKIP_COLOR = 100
@@ -73,6 +74,10 @@ COLD_THRESHOLD = 0.3
 
 # Energy release by Czar Bomba in kg*km^2*s^(-2)
 CZAR_BOMBA_ENERGY = 2e11
+
+# AI PARAMETERS
+SIMPLE_SPEED_GUESS_LOWER = 0.9
+SIMPLE_SPEED_GUESS_HIGHER = 1
 
 # Cannonballs have as much energy as 1 million Czar Bombs
 DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12

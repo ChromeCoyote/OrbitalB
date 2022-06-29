@@ -113,9 +113,11 @@ class Engine:
                         elif event.key == tank.move_CCW_key and not tank.chambered_ball:
                             tank.pos_angle += tank.radian_step
                             tank.get_surface_pos()
+                            tank.reset_default_launch()
                         elif event.key == tank.move_CW_key and not tank.chambered_ball:
                             tank.pos_angle -= tank.radian_step
                             tank.get_surface_pos()
+                            tank.reset_default_launch()
                         elif event.key == tank.detonate_ball_key:
                             tank.detonate_ball()
 
@@ -178,3 +180,39 @@ class Engine:
                 tank.get_surface_pos()
                 for ball in tank.balls:
                     ball.displace(self.displacement)
+
+    def endgame_screen(self):
+        wait4me = True
+
+        while wait4me:
+            self.ticktock()
+
+            self.create_universe()
+
+            events = pygame.event.get()
+            for event in events:
+                if event.type == pygame.KEYDOWN:
+                    wait4me = False
+
+            self.set_font_size(48)
+            if self.tanks and self.tanks[0].winner:
+                    for ball in self.tanks[0].balls:
+                        if ball.exploding:
+                            ball.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+
+                    self.draw_objects()
+                
+                    self.display_game_message(
+                            f"{self.tanks[0].name} wins!", self.screen_rect.center, self.tanks[0].color)
+            elif not self.tanks:
+                self.draw_objects()
+                self.display_game_message(
+                        "All tanks destroyed!", self.screen_rect.center, settings.DEFAULT_FONT_COLOR)
+
+            self.set_font_size(64)
+            self.display_game_message(
+                    f"GAME OVER", self.screen_rect.midbottom, (random.randint(0,255), random.randint(0,255), random.randint(0,255)))
+            pygame.display.flip()
+                    
+        if self.sts.debug:
+            print("Game over, exiting...")

@@ -5,31 +5,36 @@ from tkinter.font import families
 import pygame, math, random, numpy
 import settings, cosmos, cannonball
 
-def check_tanks(tanks):
+def check_tanks(tanks, _settings):
     destroyed_player_tanks = []
     
-    for tank in tanks[:]:
-        if not tank.active:
-            if tanks[0].sts.debug:
-                print(f"\n{tank.name} being destroyed...")    
-            if tank.balls:
-                if tank != tanks[0]:
-                # give destroyed tank's balls to first tank's balls
-                    tank.give_balls(tanks[0])
-                    if tanks[0].sts.debug:
-                        print(f"\nBalls from {tank.name} given to first tank's ball list.")
-                else:
-                # give destroyed tank's balls to last tank's balls
-                    tank.give_balls(tanks[-1])
-                    if tanks[0].sts.debug:
-                        print(f"\nBalls from {tank.name} given to last tank's ball list.")
-            if tank.player_tank:
-                destroyed_player_tanks.append(tank)
-            tanks.remove(tank)
-            if tanks[0].sts.debug:
-                print(f"Tank successfully destroyed!")
-
-    if not destroyed_player_tanks:
+    if tanks:
+        for tank in tanks[:]:
+            if not tank.active:
+                if _settings.debug:
+                    print(f"\n{tank.name} being destroyed...")    
+                if tank.balls:
+                    if tank != tanks[0]:
+                    # give destroyed tank's balls to first tank's balls
+                        tank.give_balls(tanks[0])
+                        if _settings.debug:
+                            print(f"\nBalls from {tank.name} given to first tank's ball list.")
+                    elif tank != tanks[-1]:
+                    # give destroyed tank's balls to last tank's balls
+                        tank.give_balls(tanks[-1])
+                        if _settings.debug:
+                            print(f"\nBalls from {tank.name} given to last tank's ball list.")
+                    else:
+                        if _settings.debug:
+                            print(f"\nOnly one tank left, can't give balls away!")
+                if tank.player_tank:
+                    destroyed_player_tanks.append(tank)
+                tanks.remove(tank)
+                if _settings.debug:
+                    print(f"Tank successfully destroyed!")
+        if not destroyed_player_tanks:
+            destroyed_player_tanks = False
+    else:
         destroyed_player_tanks = False
 
     return destroyed_player_tanks
@@ -51,7 +56,7 @@ class Tank (cosmos.Celestial):
         self.color = settings.DEFAULT_TANK_COLOR
 
         # find and setup stats for homeworld
-        self.homeworld = cosmos.Celestial(sts)
+        self.homeworld = False
         for body in celestials:
             if body.homeworld == True:
                 self.homeworld = body
@@ -93,6 +98,18 @@ class Tank (cosmos.Celestial):
         self.move_CW_key = settings.MOVE_TANK_CW
         self.detonate_ball_key = settings.DETONATE_BALL
 
+        # AI variables
+        self.angle_guess = self.launch_angle
+        self.speed_guess = self.launch_speed
+        self.pos_target = self.pos_angle
+        self.moving = False
+        self.targeting = False
+
+        self.mu = 0         # orbital constant
+
+        if self.homeworld:
+            self.mu = -settings.GRAV_CONST*self.homeworld.mass
+
         # self.ball_force 
 
     def fix_launch_velocity(self):
@@ -113,9 +130,14 @@ class Tank (cosmos.Celestial):
     def update_celestials(self, celestials):
         """ update homewold values """
         self.celestials = celestials
+        body.homeworld = False
         for body in celestials:
             if body.homeworld == True:
                 self.homeworld = body
+        if self.homeworld:
+            self.mu = -settings.GRAV_CONST*self.homeworld.mass
+        else:
+            self.mu = 0
 
     def check_chamber(self):
         chamber_ready = 0
@@ -206,7 +228,7 @@ class Tank (cosmos.Celestial):
                     if ball.explode_timer > settings.EXPLODE_THRESHOLD:
                         ball.exploding = False
                         ball.active = False
-                ball.check_impact(self.celestials, tanks)
+                ball.check_impact(tanks)
                    
         for ball in self.balls[:]:
             if not ball.active and not ball.chambered:
@@ -265,10 +287,171 @@ class Tank (cosmos.Celestial):
         self.color = settings.DEFAULT_ENEMY_TANK_COLOR
         self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
         self.get_surface_pos()
+        self.reset_default_launch()
 
     def give_balls(self, tank):
         if self.balls:
             for ball in self.balls:
-                tank.balls.append(ball)
+                if not ball.chambered:
+                    tank.balls.append(ball)
     
+    def guess_launch_angle(self, targeted_tank):
+        if targeted_tank.active:
+            radical_factor = (self.mu * targeted_tank.pos_angle) / (self.pos_angle**2 * self.launch_speed**2)
+            if radical_factor < 0:
+                self.pick_launch_angle()
+            else:
+                self.angle_guess = math.asin(math.sqrt(radical_factor))
+        else:
+            self.pick_launch_angle()
+    
+    def guess_launch_speed(self, targeted_tank):
+        if targeted_tank.active:
+            self.speed_guess = math.sqrt(
+                (self.mu * targeted_tank.pos_angle) / (self.pos_angle**2 * (math.sin(self.launch_angle)) ** 2)
+            )
+        else:
+            self.pick_launch_speed()
+
+    def pick_launch_angle(self):
+        if random.randint(0, 1):
+            self.angle_guess = random.uniform(
+                (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
+        else:
+            self.angle_guess = random.uniform(
+                (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
+    
+    def pick_launch_speed(self):
+        self.speed_guess = random.uniform(
+            settings.SIMPLE_SPEED_GUESS_LOWER*self.escape_v, settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v)
+    
+    def simple_target(self):
+        self.pick_launch_angle()
+        self.pick_launch_speed()
+
+    def quick_target(self, targeted_tank):
+        self.pick_launch_speed()
+        self.guess_launch_angle(targeted_tank)
+
+    def check_moving(self):
+        if abs(self.pos_angle - self.pos_target) < 2*self.radian_step:
+            self.moving = False
+            if self.sts.debug:
+                print(f"\n{self.name} at target position, not moving...")
+        else:
+            self.moving = True
+            if self.sts.debug:
+                print(f"\n{self.name} not at target position, moving...")
+
+    def check_targeting(self):
+        angle_ready = False
+        speed_ready = False
         
+        if abs(self.launch_angle - self.angle_guess) < 10*self.radian_step:
+            angle_ready = True
+        if abs(self.launch_speed - self.speed_guess) < 2*self.speed_step:
+            speed_ready = True
+
+        if angle_ready and speed_ready and self.targeting:
+            if self.sts.debug:
+                print(f"\n{self.name} firing solution within tolerances, not adjusting firing solution...")
+                print(f"\n{self.name} attempting to fire cannonball...")
+    
+            if self.chambered_ball:
+                self.fire_ball()
+                self.targeting = False
+            elif self.sts.debug:
+                print("\nError firing cannonball, no ball chambered!")
+        elif self.targeting:
+            if self.sts.debug:
+                print(f"\n{self.name} firing solution not within tolerances, adjusting firing solution...")
+            if self.angle_guess > self.launch_angle and not angle_ready:
+                self.launch_angle += self.radian_step
+                if self.sts.debug:
+                    print(f"\n{self.name} adjusted targeting angle one unit CCW...")
+            elif self.angle_guess < self.launch_angle and not angle_ready:
+                self.launch_angle -= self.radian_step
+                if self.sts.debug:
+                    print(f"\n{self.name} adjusted targeting angle one unit CW...")
+            elif self.launch_speed > self.speed_guess and not speed_ready:
+                self.launch_speed -= self.speed_step
+                if self.sts.debug:
+                    print(f"\n{self.name} lowered launch speed one unit...")
+            elif self.launch_speed < self.speed_guess and not speed_ready:
+                self.launch_speed += self.speed_step
+                if self.sts.debug:
+                    print(f"\n{self.name} increased launch speed one unit...")
+
+    def pick_position(self):
+            if random.randint(0, 1):
+                self.pos_target = random.uniform(
+                    (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
+            else:
+                self.pos_target = random.uniform(
+                    (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
+            if self.sts.debug:
+                print(f"\n{self.name} choose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
+            
+            self.check_moving()
+        
+    def move_to_position_target(self):
+        self.check_moving()
+        if self.pos_target > self.pos_angle and self.moving:
+            self.pos_angle += self.radian_step
+            self.get_surface_pos()
+            if self.sts.debug:
+                print(f"\n{self.name} moved one unit CCW...")
+            self.reset_default_launch()
+        elif self.pos_target < self.pos_angle and self.moving:
+            self.pos_angle -= self.radian_step
+            self.get_surface_pos()
+            if self.sts.debug:
+                print(f"\n{self.name} moved one unit CW...")
+            self.reset_default_launch()
+
+    def pick_position(self):
+            if random.randint(0, 1):
+                self.pos_target = random.uniform(
+                    (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
+            else:
+                self.pos_target = random.uniform(
+                    (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
+            if self.sts.debug:
+                print(f"\n{self.name} choose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
+            
+            self.check_moving()
+    
+    def pick_move_or_shoot(self):
+        # if random.randint(0, 1):
+        if True:    
+            self.moving = False
+            self.targeting = True
+        else:
+            self.targeting = False
+            self.moving = True
+            self.pick_position()
+
+    def pick_target(self, _tanks):
+        """ Pick a target amongst list of tanks """
+        # for now, pick first tank
+        return _tanks[0]
+
+    def make_choices(self, _tanks):
+        if not self.player_tank:
+            if self.moving and not self.chambered_ball:
+                self.move_to_position_target()
+            elif self.targeting:
+                if not self.chambered_ball:
+                    self.chamber_ball()
+                    # self.simple_target()
+                    self.quick_target(self.pick_target(_tanks))
+                if self.chambered_ball:
+                    self.check_targeting()
+                else:
+                    print(f"\nERROR:  {self.name} can't chamber a ball!")
+            else:
+                self.pick_move_or_shoot()
+
+            if self.moving and self.chambered_ball:
+                print(f"\nERROR:  {self.name} attempting to move with a chambered ball!")
+            

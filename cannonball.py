@@ -36,6 +36,7 @@ class Cannonball(cosmos.Celestial):
         self.chambered = False
         self.exploding = False
         self.armed = False
+        self.given_away = False
 
         self.fuse_timer = 0
         self.explode_timer = 0
@@ -106,8 +107,10 @@ class Cannonball(cosmos.Celestial):
                         celestial.vx += ax * self.sts.tres
                         celestial.vy += ay * self.sts.tres
                         if celestial.mass < self.sts.crit_explode_mass:
-                            # self.stuck_to_celestial = False
-                            celestial.break_self(self.celestials)
+                            celestial.break_self(self.celestials, celestial.get_unit(self.x, self.y))
+                            self.stuck_to_celestial = False
+                            self.exploding = False
+                            self.active = False
                 else:
                     self.active = False
                 

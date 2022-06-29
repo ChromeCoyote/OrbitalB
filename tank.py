@@ -104,6 +104,7 @@ class Tank (cosmos.Celestial):
         self.pos_target = self.pos_angle
         self.moving = False
         self.targeting = False
+        self.target = False
 
         self.mu = 0         # orbital constant
 
@@ -207,12 +208,14 @@ class Tank (cosmos.Celestial):
         for ball in self.balls:
             if ball.active == True:
                 ball.move(self.celestials)
+                ball.check_off_screen()
     
     def check_balls(self, tanks):
         """ Check status of active balls """
 
         for ball in self.balls:
             if ball.active:
+                ball.check_off_screen()
                 if not ball.armed and not ball.exploding:
                     ball.fuse_timer += 1
                     if ball.fuse_timer > settings.FUSE_THRESHOLD:
@@ -239,7 +242,7 @@ class Tank (cosmos.Celestial):
     def detonate_ball(self):
         blew_up = False
         for ball in self.balls:
-            if ball.active and ball.armed and not blew_up:
+            if ball.active and ball.armed and not blew_up and not ball.given_away:
                 ball.explode()
                 blew_up = True
         
@@ -280,6 +283,12 @@ class Tank (cosmos.Celestial):
             print(f"\nBall #{ball_number} of {self.name}:")
             ball.display_ball_values()
 
+    def check_smush(self, body):
+        if not body.homeworld and super().check_hit(body):
+            self.active = False
+            if self.sts.debug:
+                print(f"{self.name} has been smushed by {body.name}!")
+
     def set_enemy_tank(self):
         """ Sets tank to an enemy """
         self.player_tank = False
@@ -293,26 +302,9 @@ class Tank (cosmos.Celestial):
         if self.balls:
             for ball in self.balls:
                 if not ball.chambered:
+                    ball.given_away = True
                     tank.balls.append(ball)
     
-    def guess_launch_angle(self, targeted_tank):
-        if targeted_tank.active:
-            radical_factor = (self.mu * targeted_tank.pos_angle) / (self.pos_angle**2 * self.launch_speed**2)
-            if radical_factor < 0:
-                self.pick_launch_angle()
-            else:
-                self.angle_guess = math.asin(math.sqrt(radical_factor))
-        else:
-            self.pick_launch_angle()
-    
-    def guess_launch_speed(self, targeted_tank):
-        if targeted_tank.active:
-            self.speed_guess = math.sqrt(
-                (self.mu * targeted_tank.pos_angle) / (self.pos_angle**2 * (math.sin(self.launch_angle)) ** 2)
-            )
-        else:
-            self.pick_launch_speed()
-
     def pick_launch_angle(self):
         if random.randint(0, 1):
             self.angle_guess = random.uniform(
@@ -322,17 +314,51 @@ class Tank (cosmos.Celestial):
                 (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
     
     def pick_launch_speed(self):
-        self.speed_guess = random.uniform(
-            settings.SIMPLE_SPEED_GUESS_LOWER*self.escape_v, settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v)
+        if self.target:
+            self.speed_guess = \
+                settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v * \
+                    ( self.get_dist(self.target.x, self.target.y)**2/(2*self.homeworld.radius)**2 )
+        else:
+            self.speed_guess = random.uniform(
+                settings.SIMPLE_SPEED_GUESS_LOWER*self.escape_v, settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v)
     
+    def guess_launch_angle(self):
+        guessed = False
+        if self.target:
+            radical_factor = (self.mu * self.target.pos_angle) / (self.pos_angle**2 * self.launch_speed**2)
+            if radical_factor > 0:
+                self.angle_guess = math.asin(math.sqrt(radical_factor))
+                self.angle_guess = self.angle_guess % math.pi
+                guessed = True
+            else:
+                self.pick_launch_angle()
+        
+        return guessed
+  
+    def guess_launch_speed(self):
+        guessed = False
+        if self.target:
+            if self.pos_angle and self.launch_angle:
+                radical_factor = (self.mu * self.target.pos_angle) / (self.pos_angle**2 * (math.sin(self.launch_angle)) ** 2)
+            else:
+                radical_factor = 0
+            if radical_factor > 0:
+                self.speed_guess = math.sqrt(radical_factor)
+                guessed = True
+            else:
+                self.pick_launch_speed()
+        
+        return guessed
+        
     def simple_target(self):
         self.pick_launch_angle()
         self.pick_launch_speed()
 
-    def quick_target(self, targeted_tank):
+    def quick_target(self):
         self.pick_launch_speed()
-        self.guess_launch_angle(targeted_tank)
-
+        if not self.guess_launch_angle():
+            self.guess_launch_speed()
+        
     def check_moving(self):
         if abs(self.pos_angle - self.pos_target) < 2*self.radian_step:
             self.moving = False
@@ -347,7 +373,7 @@ class Tank (cosmos.Celestial):
         angle_ready = False
         speed_ready = False
         
-        if abs(self.launch_angle - self.angle_guess) < 10*self.radian_step:
+        if abs(self.launch_angle - self.angle_guess) < 2*self.radian_step:
             angle_ready = True
         if abs(self.launch_speed - self.speed_guess) < 2*self.speed_step:
             speed_ready = True
@@ -422,29 +448,37 @@ class Tank (cosmos.Celestial):
             self.check_moving()
     
     def pick_move_or_shoot(self):
-        # if random.randint(0, 1):
-        if True:    
+        if random.randint(0, 1):
+        # if True:    
             self.moving = False
             self.targeting = True
         else:
             self.targeting = False
             self.moving = True
             self.pick_position()
+        if not self.target:
+            self.moving = False
+            self.targeting = False
+            self.detonate_ball()
 
     def pick_target(self, _tanks):
         """ Pick a target amongst list of tanks """
-        # for now, pick first tank
-        return _tanks[0]
-
+        self.target = False
+        for _tank in _tanks:
+            if self.name != _tank.name:
+                self.target = _tank
+ 
     def make_choices(self, _tanks):
+     
         if not self.player_tank:
+            self.pick_target(_tanks)
             if self.moving and not self.chambered_ball:
                 self.move_to_position_target()
             elif self.targeting:
                 if not self.chambered_ball:
                     self.chamber_ball()
                     # self.simple_target()
-                    self.quick_target(self.pick_target(_tanks))
+                    self.quick_target()
                 if self.chambered_ball:
                     self.check_targeting()
                 else:

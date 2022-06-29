@@ -2,17 +2,18 @@
 
 # from locale import normalize
 import math
+from turtle import width
 import settings
 import pygame
 import numpy
 import random
 
-def rotate_vector(x, y, ang):
+def rotate_vector(r, ang):
     cosang = math.cos(ang)
     sinang = math.sin(ang)
 
-    x2 = cosang*x - sinang*y
-    y2 = sinang*x + cosang*y
+    x2 = cosang*r[0] - sinang*r[1]
+    y2 = sinang*r[0] + cosang*r[1]
 
     return(x2, y2)
 
@@ -43,7 +44,7 @@ def bounce_v(m1, m2, x1, x2, v1, v2):
 
     return (vel1, vel2)
 
-def break_celestial(broke_body, celestials):
+def break_celestial(broke_body, celestials, break_plane):
     if broke_body.radius >= broke_body.sts.crit_radius:
         broke_body.radius /= 2
         broke_body.get_mass()
@@ -64,23 +65,25 @@ def break_celestial(broke_body, celestials):
             print(f"\n{celestials[-1].name} has been created by another...")
             celestials[-1].display_values()
 
-        (normx, normy) = normalize([broke_body.vx, broke_body.vy])
-        (normx, normy) = rotate_vector(normx, normy, -math.pi/2)
-        normx *= (broke_body.radius / 2)
-        normy *= (broke_body.radius / 2)
-        broke_body.x -= normx
-        broke_body.y -= normy
+        # old_displacement is a vector that defines displacement of old body's position vector
+        # rotate this vector 90-degrees clockwise...
+        old_displacement = rotate_vector(break_plane, -math.pi/2)
+        # make the vector length equal to new radius...
+        old_displacement = numpy.multiply(broke_body.radius, old_displacement)
+        # then displace position vector by that much.  This makes room for new body
+        # Old body by is pushed west if heading east, or east if heading west
+        [broke_body.x, broke_body.y] = numpy.subtract([broke_body.x, broke_body.y], old_displacement)
         broke_body.get_screenxy()
-        (broke_body.vx, broke_body.vy) = rotate_vector(
-            broke_body.vx, broke_body.vy, -math.pi/4)
+        # new body is pushed the other direction           
+        [celestials[-1].x, celestials[-1].y] = numpy.add(
+            [celestials[-1].x, celestials[-1].y], old_displacement)
+        celestials[-1].get_screenxy()
+
+        broke_body.bounce(celestials[-1])
+     
         if broke_body.sts.debug:
             print(f"\nNew values for {broke_body.name}:")
             broke_body.display_values()
-        celestials[-1].x += normx
-        celestials[-1].y += normy
-        celestials[-1].get_screenxy()
-        (celestials[-1].vx, celestials[-1].vy) = rotate_vector(
-            celestials[-1].vx, celestials[-1].vy, math.pi/4)
         if broke_body.sts.debug:
             print(f"\nNew values for {celestials[-1].name}:")
             celestials[-1].display_values()
@@ -88,7 +91,6 @@ def break_celestial(broke_body, celestials):
         broke_body.active = False
         if broke_body.sts.debug:
             print(f"{broke_body.name} has been marked for destruction by another...")
-
 
 def check_celestials(celestials):
     for celestial in celestials[:]:
@@ -98,8 +100,7 @@ def check_celestials(celestials):
             celestials.remove(celestial)
             if celestials[0].sts.debug:
                 print(f"Success!")    
-                
-    
+                    
 class Celestial:
     """ Class to hold data & functions for worlds & moons """
 
@@ -293,7 +294,7 @@ class Celestial:
             self.y += addy * abs(rel_dist - combo_rad)
             self.get_screenxy()
     
-    def bounce(self, celestials):
+    def bounce_all(self, celestials):
         """ Check for collision & reflect if so """
         
         for celestial in celestials:
@@ -301,18 +302,25 @@ class Celestial:
                     # first, reset coordinates to eliminate overlap
                     self.fix_overlap(celestial)
                     # assign new velocities and convert to km, km/s
-                    ([self.vx, self.vy], [celestial.vx, celestial.vy]) = bounce_v( \
-                        self.mass, celestial.mass, \
-                        [self.x, self.y], \
-                        [celestial.x, celestial.y], \
-                        [self.vx, self.vy], \
-                        [celestial.vx, celestial.vy] )
-                    self.vx *= math.sqrt(self.sts.energy_loss)
-                    self.vy *= math.sqrt(self.sts.energy_loss)
-                    celestial.vx *= math.sqrt(self.sts.energy_loss)
-                    celestial.vy *= math.sqrt(self.sts.energy_loss)
+                    self.bounce(celestial)
+                    
+    def bounce(self, celestial):
+        """ bounce self off of celestial """
+        
+        self.fix_overlap(celestial)
+        # assign new velocities and convert to km, km/s
+        ([self.vx, self.vy], [celestial.vx, celestial.vy]) = bounce_v( \
+            self.mass, celestial.mass, \
+            [self.x, self.y], \
+            [celestial.x, celestial.y], \
+            [self.vx, self.vy], \
+            [celestial.vx, celestial.vy] )
+        self.vx *= math.sqrt(self.sts.energy_loss)
+        self.vy *= math.sqrt(self.sts.energy_loss)
+        celestial.vx *= math.sqrt(self.sts.energy_loss)
+        celestial.vy *= math.sqrt(self.sts.energy_loss)
 
-    def break_self(self, celestials):
+    def break_self(self, celestials, break_plane):
         if self.radius >= self.sts.crit_radius:                       
             self.radius /= 2
             self.get_mass()
@@ -333,23 +341,26 @@ class Celestial:
                 print(f"\n{celestials[-1].name} has been created by {self.name}...")
                 celestials[-1].display_values()
            
-            (normx, normy) = normalize([self.vx, self.vy])
-            (normx, normy) = rotate_vector(normx, normy, -math.pi/2)
-            normx *= self.radius
-            normy *= self.radius
-            self.x -= normx
-            self.y -= normy
+            # old_displacement is a vector that defines displacement of old body's position vector
+            # rotate this vector 90-degrees clockwise...
+            old_displacement = rotate_vector(break_plane, -math.pi/2)
+            # make the vector length equal to new radius...
+            old_displacement = numpy.multiply(self.radius, old_displacement)
+            # then displace position vector by that much.  This makes room for new body
+            # Old body by is pushed west if heading east, or east if heading west
+            [self.x, self.y] = numpy.subtract([self.x, self.y], old_displacement)
             self.get_screenxy()
-            (self.vx, self.vy) = rotate_vector(
-                self.vx, self.vy, -math.pi/4)
+            # new body is pushed the other direction           
+            [celestials[-1].x, celestials[-1].y] = numpy.add(
+                [celestials[-1].x, celestials[-1].y], old_displacement)
+            celestials[-1].get_screenxy()
+
+            self.bounce(celestials[-1])
+
             if self.sts.debug:
                 print(f"\nNew vlues for {self.name}:")
                 self.display_values()
-            celestials[-1].x += normx
-            celestials[-1].y += normy
-            celestials[-1].get_screenxy()
-            (celestials[-1].vx, celestials[-1].vy) = rotate_vector(
-                celestials[-1].vx, celestials[-1].vy, math.pi/4)
+            
             if self.sts.debug:
                 print(f"\nNew valuse for {celestials[-1].name}")
                 celestials[-1].display_values()
@@ -363,18 +374,39 @@ class Celestial:
         for celestial in celestials[:]:
             if celestial.name != self.name and self.check_hit(celestial):
                     if self.mass > (celestial.mass * self.sts.crit_mass) and not celestial.homeworld:
-                        break_celestial(celestial, celestials)
+                        self.bounce(celestial)
+                        break_celestial(celestial, celestials, celestial.get_unit(self.x, self.y))
                     elif (self.mass * self.sts.crit_mass) < celestial.mass and not self.homeworld:
-                        self.break_self(celestials)
+                        self.bounce(celestial)
+                        self.break_self(celestials, self.get_unit(celestial.x,  celestial.y))
                     # fix overlap if any
                     self.fix_overlap(celestial)
                                                                
+    def check_off_screen(self):
+        if (self.screen_x + self.screen_rad) < 0:
+            self.active = False
+            if self.sts.debug:
+                print(f"\n{self.name} is being removed for being too far left off-screen...")
+        elif (self.screen_x - self.screen_rad) > self.width:
+            self.active = False
+            if self.sts.debug:
+                print(f"\n{self.name} is being removed for being too far right off-screen...")
+        elif (self.screen_y + self.screen_rad) < 0:
+            self.active = False
+            if self.sts.debug:
+                print(f"\n{self.name} is being removed for being too far up off-screen...")
+        elif (self.screen_y + self.screen_rad) > self.height:
+            self.active = False
+            if self.sts.debug:
+                print(f"\n{self.name} is being removed for being too far down off-screen...")
+   
     def move(self, celestials):
         """ Move object based on current velocity """
         self.accelerate(celestials)
         self.x += self.vx * self.sts.tres
         self.y += self.vy * self.sts.tres
         self.get_screenxy()
+        self.check_off_screen()
 
     def get_collision_point(self, celestial):
         collide_x = ( (self.x * celestial.radius) + (celestial.x * self.radius) ) / (self.radius + celestial.radius)

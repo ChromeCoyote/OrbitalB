@@ -4,7 +4,7 @@ import tank as _tank
 MainSettings = settings.Settings()
 
 # experimenting with FPS & time
-MainSettings.set_scales(MainSettings.rad_scale, 20, 1)
+MainSettings.set_scales(MainSettings.rad_scale, 1, 10)
 
 MainEngine = engine.Engine(MainSettings)
 
@@ -12,7 +12,11 @@ MainEngine = engine.Engine(MainSettings)
 MainEngine.create_homeworld()
 
 # create moons
-MainEngine.create_moon()
+# MainEngine.create_moon()
+# MainEngine.celestials[-1].vx = 0
+# MainEngine.celestials[-1].vy = 0
+# MainEngine.celestials[-1].y = 2*MainEngine.celestials[0].radius
+# MainEngine.celestials[-1].x = 0
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
@@ -46,8 +50,10 @@ while not MainEngine.game_over:
         
         for body in MainEngine.celestials:
             body.move(MainEngine.celestials)
+            for tank in MainEngine.tanks:
+                tank.check_smush(body)    
             body.shatter(MainEngine.celestials)
-            body.bounce(MainEngine.celestials)
+            body.bounce_all(MainEngine.celestials)
                     
         cosmos.check_celestials(MainEngine.celestials)
 
@@ -56,7 +62,7 @@ while not MainEngine.game_over:
         for tank in MainEngine.tanks:
             tank.move_balls()
             tank.check_balls(MainEngine.tanks)
- 
+     
         destroyed_player_tanks = _tank.check_tanks(MainEngine.tanks, MainSettings)
         if destroyed_player_tanks:
             for tank in destroyed_player_tanks:

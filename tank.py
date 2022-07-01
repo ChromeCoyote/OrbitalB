@@ -327,7 +327,7 @@ class Tank (cosmos.Celestial):
                     tank.balls.append(ball)
     
     def pick_launch_angle(self):
-        if random.randint(0, 1):
+        if random.getrandbits(1):
             self.angle_guess = random.uniform(
                 (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
         else:
@@ -446,7 +446,7 @@ class Tank (cosmos.Celestial):
                     self.sts.write_to_log(f"{self.name} increased launch speed one unit...")
 
     def pick_position(self):
-            if random.randint(0, 1):
+            if random.getrandbits(1):
                 self.pos_target = random.uniform(
                     (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
             else:

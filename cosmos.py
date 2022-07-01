@@ -9,6 +9,7 @@ import pygame
 import numpy
 import random
 import os
+import copy
 
 def rotate_vector(r, ang):
     cosang = math.cos(ang)
@@ -51,6 +52,9 @@ def break_celestial(broke_body, celestials, break_plane):
         broke_body.radius /= 2
         broke_body.get_mass()
         broke_body.set_screen_radius()
+        if broke_body.pix:
+            # settings.random_pix_transform(broke_body.pix)
+            broke_body.scale_pix_to_body_circle()
         if broke_body.sts.debug:
             broke_body.sts.write_to_log(f"{broke_body.name} has been shrunk by another...")
             broke_body.write_values()
@@ -63,6 +67,10 @@ def break_celestial(broke_body, celestials, break_plane):
         celestials[-1].vy = broke_body.vy
         celestials[-1].x = broke_body.x
         celestials[-1].y = broke_body.y
+        if broke_body.pix:
+            celestials[-1].load_pix(broke_body.pix_path)
+            # settings.random_pix_transform(broke_body.pix)
+            celestials[-1].scale_pix_to_body_circle()
         if broke_body.sts.debug:
             broke_body.sts.write_to_log(f"{celestials[-1].name} has been created by another...")
             celestials[-1].write_values()
@@ -139,6 +147,7 @@ class Celestial:
 
         # Storage for sprite/graphic if there is one
         self.pix = False
+        self.pix_path = False
         # self.pix_rings = False
 
         # gets current resolution values for current windows.
@@ -349,6 +358,9 @@ class Celestial:
             self.radius /= 2
             self.get_mass()
             self.set_screen_radius()
+            if self.pix:
+                # settings.random_pix_transform(self.pix)
+                self.scale_pix_to_body_circle()
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} has shrunk itself...")
                 self.write_values()
@@ -361,6 +373,10 @@ class Celestial:
             celestials[-1].vy = self.vy
             celestials[-1].x = self.x
             celestials[-1].y = self.y
+            if self.pix:
+                celestials[-1].load_pix(self.pix_path)
+                # settings.random_pix_transform(celestials[-1].pix)
+                celestials[-1].scale_pix_to_body_circle()
             if self.sts.debug:
                 self.sts.write_to_log(f"{celestials[-1].name} has been created by {self.name}...")
                 celestials[-1].write_values()
@@ -441,17 +457,19 @@ class Celestial:
         [self.x, self.y] = numpy.add([self.x, self.y], displacement)
         self.get_screenxy()
 
-    def load_pix(self, pix_path):
-        pix_path = os.path.normpath(pix_path)
-        load_success = os.path.exists(pix_path)
+    def load_pix(self, path_to_pix):
+        self.pix_path = os.path.normpath(path_to_pix)
+        load_success = os.path.exists(self.pix_path)
         if load_success:
-            self.pix = pygame.image.load_extended(pix_path)
+            self.pix = pygame.image.load_extended(self.pix_path)
             self.pix.convert_alpha()
             self.scale_pix_to_body_circle()
             if self.sts.debug:
-                self.sts.write_to_log(f"{pix_path} loaded as pixie for {self.name} and scaled to body circle...")
-        elif self.sts.debug:
-            self.sts.write_to_log(f"ERROR loading {pix_path} for {self.name}:  file doesn't exist!")
+                self.sts.write_to_log(f"{self.pix_path} loaded as pixie for {self.name} and scaled to body circle...")
+        else:
+            self.pix_path = False
+            if self.sts.debug:
+                self.sts.write_to_log(f"ERROR loading {self.pix_path} for {self.name}:  file doesn't exist!")
    
         return load_success
 
@@ -478,43 +496,42 @@ class Celestial:
 
     def pull_homeworld_pix(self, pix_name):
         
-        pix_path = False
         if isinstance(pix_name, str) and self.homeworld:
             if pix_name.lower() == "desert":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Desert")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Desert")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose desert pix!")
             elif pix_name.lower() == "forest":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Forest")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Forest")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose forest pix!")
             elif pix_name.lower() == "ice":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Ice")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Ice")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose ice pix!")
             elif pix_name.lower() == "lava":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Lava")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Lava")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose lava pix!")
             elif pix_name.lower() == "ocean":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Ocean")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Ocean")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose ocean pix!")
             elif pix_name.lower() == "rocky":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Rocky")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Rocky")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose rocky pix!")
             elif pix_name.lower() == "tech":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Tech")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Tech")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose tech pix!")
             elif pix_name.lower() == "Terran":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Terran")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Terran")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose terran pix!")
             elif pix_name.lower() == "Tundra":
-                pix_path = settings.choose_random_file("Pix/Homeworlds/Tundra")
-                if not pix_path and self.sts.debug:
+                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Tundra")
+                if not self.pix_path and self.sts.debug:
                     self.sts.write_to_log(f"ERROR:  Can't choose tundra pix!")
             else:
                 if self.sts.debug:
@@ -525,67 +542,85 @@ class Celestial:
             if self.sts.debug and not self.homeworld:
                 self.sts.write_to_log(f"ERROR:  {self.name} is not the homeworld, can't pull homeworld pix!")
         
-        if pix_path:
-                if self.load_pix(pix_path):
+        if self.pix_path:
+                if self.load_pix(self.pix_path):
                     if self.sts.debug:
-                        self.sts.write_to_log(f"Image at {pix_path} choosen by Cosmos.pull_homeworld_pix for {self.name}...")
+                        self.sts.write_to_log(f"Image at {self.pix_path} choosen by Cosmos.pull_homeworld_pix for {self.name}...")
                 elif self.sts.debug:
                         self.sts.write_to_log(
                             f"Unspecified ERROR in Cosmos.pull_homeworld_pix() for {self.name}, error returned by Cosmos.load_pix()")
-
-        return pix_path
 
     def pick_homeworld_pix(self):
         dice_roll = random.randint(1, settings.NUM_HOMEWORLD_CAT)
         # desert
         if dice_roll == 1:
-            if self.pull_homeworld_pix("desert"):
+            self.pull_homeworld_pix("desert")
+            if self.pix_path:
                 self.sts.write_to_log(f"Desert homeworld choosen...")
                 self.name = "Desert Homeworld"
         # Forest
         elif dice_roll == 2:
-            if self.pull_homeworld_pix("forest"):
+            self.pull_homeworld_pix("forest")
+            if self.pix_path:
                 self.sts.write_to_log(f"Forest homeworld choosen...")
                 self.name = "Forest Homeworld"
         # Ice
         elif dice_roll == 3:
-            if self.pull_homeworld_pix("ice"):
+            self.pull_homeworld_pix("ice")
+            if self.pix_path:
                 self.sts.write_to_log(f"Ice homeworld choosen...")
                 self.name = "Ice Homeworld"
         # Lava
         elif dice_roll == 4:
-            if self.pull_homeworld_pix("lava"):
+            self.pull_homeworld_pix("lava")
+            if self.pix_path:
                 self.sts.write_to_log(f"Lava homeworld choosen...")
                 self.name = "Volcanic Homeworld"
         # Ocean
         elif dice_roll == 5:
-            if self.pull_homeworld_pix("ocean"):
+            self.pull_homeworld_pix("ocean")
+            if self.pix_path:
                 self.sts.write_to_log(f"Ocean homeworld choosen...")
                 self.name = "Ocean Homeworld"
         # Rocky
         elif dice_roll == 6:
-            if self.pull_homeworld_pix("rocky"):
+            self.pull_homeworld_pix("rocky")
+            if self.pix_path:
                 self.sts.write_to_log(f"Rocky homeworld choosen...")
                 self.name = "Rocky Homeworld"
         # Tech
         elif dice_roll == 7:
-            if self.pull_homeworld_pix("tech"):
+            self.pull_homeworld_pix("tech")
+            if self.pix_path:
                 self.sts.write_to_log(f"Tech homeworld choosen...")
                 self.name = "Tech Homeworld"
         # Terran
         elif dice_roll == 8:
-            if self.pull_homeworld_pix("terran"):
+            self.pull_homeworld_pix("terran")
+            if self.pix_path:
                 self.sts.write_to_log(f"Terran homeworld choosen...")
                 self.name = "Terran Homeworld"
         # Tundra
-        elif dice_roll == 8:
-            if self.pull_homeworld_pix("tundra"):
+        elif dice_roll == 9:
+            self.pull_homeworld_pix("tundra")
+            if self.pix_path:
                 self.sts.write_to_log(f"Tundra homeworld choosen...")
                 self.name = "Tundra Homeworld"
         elif self.sts.debug:
-            self.sts.write_to_log("Unspecified ERROR in Cosmos.pick_homworld_pix.()")
+            self.sts.write_to_log("Unspecified ERROR in Cosmos.pick_homeworld_pix.()")
 
     def pick_moon_pix(self):
         if not self.homeworld:
-            if not self.load_pix(settings.choose_random_file("Pix/Moons")) and self.sts.debug:
-                self.sts.write_to_log(f"ERROR loading moon pix for {self.name}...")
+            self.pix_path = settings.choose_random_file("Pix/Moons")
+            if self.pix_path:
+                self.load_pix(self.pix_path)
+            elif self.sts.debug:
+                self.sts.write_to_log(f"ERROR loading moon pix from {self.pix_path} for {self.name}...")
+
+    def pick_dwarf_pix(self):
+        if not self.homeworld:
+            self.pix_path = settings.choose_random_file("Pix/Dwarves")
+            if self.pix_path:
+                self.load_pix(self.pix_path)
+            elif self.sts.debug:
+                self.sts.write_to_log(f"ERROR loading dwarf pix from {self.pix_path} for {self.name}...")

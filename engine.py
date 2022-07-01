@@ -83,6 +83,7 @@ class Engine:
             y_on_screen = random.randint(0, self.celestials[-1].height)
             self.celestials[-1].place_on_screen(x_on_screen, y_on_screen)
             self.celestials[-1].set_v(-speed, 0)
+            self.celestials[-1].pick_dwarf_pix()
             asteroid_created = True
             if self.celestials[-1].sts.debug:
                 self.sts.write_to_log(f"{self.celestials[-1].name} created!")

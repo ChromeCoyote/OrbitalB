@@ -169,11 +169,20 @@ def choose_random_file(path):
     old_path = path
     path = os.path.normpath(path)
     if os.path.exists(path):
-        random_file = random.choice(os.listdir(path))
-        random_file = os.path.normpath(old_path + '/' + random_file)
-
+        files_in_dir = os.listdir(path)
+        if files_in_dir:
+            random_file = random.choice(files_in_dir)
+            random_file = os.path.normpath(old_path + '/' + random_file)
+        
     return random_file
 
+def random_pix_transform(pix):
+    flip_x = random.getrandbits(1)
+    flip_y = random.getrandbits(1)
+    spin = random.randint(0, 3)
+    pygame.transform.rotate(pix, spin*90)
+    pygame.transform.flip(pix, flip_x, flip_y)
+    
 class Settings:
     """Stores settings for game"""
 
@@ -204,7 +213,7 @@ class Settings:
         self.crit_mass_ratio = DEFAULT_CRIT_MASS_RATIO
         self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
-        self.meteor_shower = False
+        self.meteor_shower = True
         self.asteroid_chance = DEFAULT_ASTEROID_CHANCE
         
         # declaration of Surface object
@@ -468,6 +477,7 @@ class Settings:
         if pix_path:
             self.faraway_pixies.append(pygame.image.load_extended(pix_path))
             self.faraway_pixies[-1].convert_alpha()
+            # random_pix_transform(self.faraway_pixies[-1])
             if self.debug:
                 self.write_to_log(f"Image at {pix_path} choosen for background...")
 

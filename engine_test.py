@@ -19,9 +19,9 @@ MainEngine.create_moon()
 # MainEngine.celestials[-1].place_on_screen(MainEngine.celestials[-1].width/4, 3*MainEngine.celestials[-1].height/4)
 # MainEngine.celestials[-1].y = 2*MainEngine.celestials[0].radius
 # MainEngine.celestials[-1].x = 0
-# MainEngine.create_moon()
-# MainEngine.create_moon()
-# MainEngine.create_moon()
+MainEngine.create_moon()
+MainEngine.create_moon()
+MainEngine.create_moon()
 
 # MainEngine.create_comet()
 

@@ -38,8 +38,9 @@ class Engine:
         
         if not self.celestials:
             self.celestials.append(cosmos.Celestial(self.sts))
+            self.celestials[0].pick_homeworld_pix()
             home_created = True
-
+            
         return home_created
 
     def create_moon(self):
@@ -61,6 +62,8 @@ class Engine:
             orbit_ang = random.uniform(0, round(2*math.pi, 2))
             self.celestials[-1].set_xy(orbit_dist*math.cos(orbit_ang), orbit_dist*math.sin(orbit_ang))
             self.celestials[-1].set_v(-speed*math.sin(orbit_ang), speed*math.cos(orbit_ang))
+            self.celestials[-1].pick_moon_pix()
+            
             moon_created = True
         
         return moon_created
@@ -171,9 +174,6 @@ class Engine:
                             tank.eject_ball()
 
     def draw_objects(self):
-        for body in self.celestials:
-            body.draw_bodycircle()
-        
         for tank in self.tanks:
             tank.draw_bodycircle()
             if tank.chambered_ball:
@@ -181,6 +181,9 @@ class Engine:
             for ball in tank.balls:
                 if ball.active or ball.exploding:
                     ball.draw_bodycircle()
+        
+        for body in self.celestials:
+            body.draw_bodycircle()
 
     def display_game_message(self, message, location, font_color):
         text_to_show = pygame.font.Font.render(

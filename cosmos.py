@@ -1,12 +1,14 @@
 # Data and functions for the world and moon (mass, radius, etc.)
 
 # from locale import normalize
+from json import load
 import math
 from turtle import width
 import settings
 import pygame
 import numpy
 import random
+import os
 
 def rotate_vector(r, ang):
     cosang = math.cos(ang)
@@ -135,6 +137,10 @@ class Celestial:
         self.screen_y = 0
         self.color = settings.DEFAULT_BODY_COLOR
 
+        # Storage for sprite/graphic if there is one
+        self.pix = False
+        # self.pix_rings = False
+
         # gets current resolution values for current windows.
         # If no windows is inialized, sets resolution to 0, which causes
         # errors
@@ -227,9 +233,16 @@ class Celestial:
 
     def draw_bodycircle(self):
         """ Draws a simple circle to represent world """
-        pygame.draw.circle(self.sts.screen, self.color, (self.screen_x, \
-            self.screen_y), self.screen_rad)
-
+        if self.pix:
+            self.sts.screen.blit(
+                self.pix, self.pix.get_rect(center = (self.screen_x, self.screen_y)) )
+            #if self.pix_rings:
+            #    self.sts.screen.blit(
+            #        self.pix_rings, self.pix_rings.get_rect(center = (self.screen_x, self.screen_y)) )
+        else:
+            pygame.draw.circle(self.sts.screen, self.color, (self.screen_x, \
+                self.screen_y), self.screen_rad)
+    
     def update_settings(self, new_settings):
         """ Updates settings class object """
         self.sts = new_settings
@@ -427,3 +440,152 @@ class Celestial:
     def displace(self, displacement):
         [self.x, self.y] = numpy.add([self.x, self.y], displacement)
         self.get_screenxy()
+
+    def load_pix(self, pix_path):
+        pix_path = os.path.normpath(pix_path)
+        load_success = os.path.exists(pix_path)
+        if load_success:
+            self.pix = pygame.image.load_extended(pix_path)
+            self.pix.convert_alpha()
+            self.scale_pix_to_body_circle()
+            if self.sts.debug:
+                self.sts.write_to_log(f"{pix_path} loaded as pixie for {self.name} and scaled to body circle...")
+        elif self.sts.debug:
+            self.sts.write_to_log(f"ERROR loading {pix_path} for {self.name}:  file doesn't exist!")
+   
+        return load_success
+
+    # def load_rings(self, rings_path):
+    #    rings_path = os.path.normpath(rings_path)
+    #    load_success = os.path.exists(rings_path)
+    #     if load_success:
+    #        self.pix_rings = pygame.image.load_extended(rings_path)
+    #        self.pix_rings.convert_alpha()
+    #        if self.sts.debug:
+    #            self.sts.write_to_log(f"{rings_path} loaded as rings pix for {self.name}...")
+    #    elif self.sts.debug:
+    #        self.sts.write_to_log(f"ERROR loading {rings_path} for {self.name}:  file doesn't exist!")
+    #
+    #    return load_success
+
+    def scale_pix_to_body_circle(self):
+        if self.pix:
+            self.pix = pygame.transform.scale(self.pix, (2*self.screen_rad, 2*self.screen_rad))
+    
+    # def scale_pix_rings(self):
+    #     if self.pix_rings:
+    #        self.pix_rings = pygame.transform.scale(self.pix_rings, (2.6*self.screen_rad, 2.6*self.screen_rad))
+
+    def pull_homeworld_pix(self, pix_name):
+        
+        pix_path = False
+        if isinstance(pix_name, str) and self.homeworld:
+            if pix_name.lower() == "desert":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Desert")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose desert pix!")
+            elif pix_name.lower() == "forest":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Forest")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose forest pix!")
+            elif pix_name.lower() == "ice":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Ice")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose ice pix!")
+            elif pix_name.lower() == "lava":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Lava")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose lava pix!")
+            elif pix_name.lower() == "ocean":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Ocean")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose ocean pix!")
+            elif pix_name.lower() == "rocky":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Rocky")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose rocky pix!")
+            elif pix_name.lower() == "tech":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Tech")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose tech pix!")
+            elif pix_name.lower() == "Terran":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Terran")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose terran pix!")
+            elif pix_name.lower() == "Tundra":
+                pix_path = settings.choose_random_file("Pix/Homeworlds/Tundra")
+                if not pix_path and self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Can't choose tundra pix!")
+            else:
+                if self.sts.debug:
+                    self.sts.write_to_log(f"ERROR:  Pix name {pix_name} not a valid choice.")
+        else:
+            if self.sts.debug:
+                self.sts.write_to_log("ERROR:  Pix name has to be a string for Cosmos.pull_homeworld_pix()")
+            if self.sts.debug and not self.homeworld:
+                self.sts.write_to_log(f"ERROR:  {self.name} is not the homeworld, can't pull homeworld pix!")
+        
+        if pix_path:
+                if self.load_pix(pix_path):
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"Image at {pix_path} choosen by Cosmos.pull_homeworld_pix for {self.name}...")
+                elif self.sts.debug:
+                        self.sts.write_to_log(
+                            f"Unspecified ERROR in Cosmos.pull_homeworld_pix() for {self.name}, error returned by Cosmos.load_pix()")
+
+        return pix_path
+
+    def pick_homeworld_pix(self):
+        dice_roll = random.randint(1, settings.NUM_HOMEWORLD_CAT)
+        # desert
+        if dice_roll == 1:
+            if self.pull_homeworld_pix("desert"):
+                self.sts.write_to_log(f"Desert homeworld choosen...")
+                self.name = "Desert Homeworld"
+        # Forest
+        elif dice_roll == 2:
+            if self.pull_homeworld_pix("forest"):
+                self.sts.write_to_log(f"Forest homeworld choosen...")
+                self.name = "Forest Homeworld"
+        # Ice
+        elif dice_roll == 3:
+            if self.pull_homeworld_pix("ice"):
+                self.sts.write_to_log(f"Ice homeworld choosen...")
+                self.name = "Ice Homeworld"
+        # Lava
+        elif dice_roll == 4:
+            if self.pull_homeworld_pix("lava"):
+                self.sts.write_to_log(f"Lava homeworld choosen...")
+                self.name = "Volcanic Homeworld"
+        # Ocean
+        elif dice_roll == 5:
+            if self.pull_homeworld_pix("ocean"):
+                self.sts.write_to_log(f"Ocean homeworld choosen...")
+                self.name = "Ocean Homeworld"
+        # Rocky
+        elif dice_roll == 6:
+            if self.pull_homeworld_pix("rocky"):
+                self.sts.write_to_log(f"Rocky homeworld choosen...")
+                self.name = "Rocky Homeworld"
+        # Tech
+        elif dice_roll == 7:
+            if self.pull_homeworld_pix("tech"):
+                self.sts.write_to_log(f"Tech homeworld choosen...")
+                self.name = "Tech Homeworld"
+        # Terran
+        elif dice_roll == 8:
+            if self.pull_homeworld_pix("terran"):
+                self.sts.write_to_log(f"Terran homeworld choosen...")
+                self.name = "Terran Homeworld"
+        # Tundra
+        elif dice_roll == 8:
+            if self.pull_homeworld_pix("tundra"):
+                self.sts.write_to_log(f"Tundra homeworld choosen...")
+                self.name = "Tundra Homeworld"
+        elif self.sts.debug:
+            self.sts.write_to_log("Unspecified ERROR in Cosmos.pick_homworld_pix.()")
+
+    def pick_moon_pix(self):
+        if not self.homeworld:
+            if not self.load_pix(settings.choose_random_file("Pix/Moons")) and self.sts.debug:
+                self.sts.write_to_log(f"ERROR loading moon pix for {self.name}...")

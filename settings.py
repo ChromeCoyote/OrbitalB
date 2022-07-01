@@ -1,9 +1,11 @@
 from pickle import TRUE
+from sre_compile import isstring
 import pygame
 import random
 import math
 import numpy
 import datetime
+import os
 
 # real world variables
 EARTH_RADIUS = 6_371    # in kilometers
@@ -123,6 +125,24 @@ DEFAULT_AI_WAIT_TIME = 0
 # are within 50% the total screen height or width outside the actual screen
 DEFAULT_VIRTUAL_SCREEN = 0.5
 
+# Chance for one of the 8 zones to have a faraway object
+DEFAULT_CHANCE_FOR_FARAWAY_OBJECT = 1/4
+NUM_ZONES = 8
+
+# Number of faraway object categories
+NUM_FARAWAY_OBJECT_CAT = 9
+
+NUM_HOMEWORLD_CAT = 10
+NUM_DESERT = 8
+NUM_FOREST = 14
+NUM_ICE = 4
+NUM_LAVA = 12
+NUM_OCEAN = 8
+NUM_ROCKY = 12
+NUM_TECH = 12
+NUM_TERRAN = 16
+NUM_TUNDRA = 8
+
 def rand_clr():
     """ Gets color of star based on galactic distribution """
     clr = (255, 255, 255)
@@ -144,6 +164,16 @@ def rand_clr():
 
     return clr
 
+def choose_random_file(path):
+    random_file = False
+    old_path = path
+    path = os.path.normpath(path)
+    if os.path.exists(path):
+        random_file = random.choice(os.listdir(path))
+        random_file = os.path.normpath(old_path + '/' + random_file)
+
+    return random_file
+
 class Settings:
     """Stores settings for game"""
 
@@ -152,6 +182,11 @@ class Settings:
         pygame.init()       # inialize pygame modules
 
         self.debug = True   # debugging on for now...
+
+         # Stuff for game log
+        self.now = datetime.datetime.now()
+        self.log_filename = self.now.strftime("%Y-%m-%d-%H%M-%S_OB_game.log") 
+        self.log_text = []
 
         #Screen settings
         self.screen_width = width
@@ -180,15 +215,13 @@ class Settings:
 
         self.starfield_clr = []     # inialize starfield color array
         self.starfield_xy = []      # inialize starfield coordinates
-        self.set_starfield()
+        self.faraway_pixies = []     # list of picture objects for background
+        self.pix_xy = []            # list of xy cooridinates for background objects
 
+        self.set_starfield()
+       
         self.screen_dist_scale = self.act_h * self.rad_scale / \
             EARTH_RADIUS
-
-        # Stuff for game log
-        self.now = datetime.datetime.now()
-        self.log_filename = self.now.strftime("%Y-%m-%d-%H%M-%S_OB_game.log") 
-        self.log_text = []
 
     def set_fps(self, fps):
         """ Set FPS """
@@ -230,6 +263,266 @@ class Settings:
         """ fill background with background color """
         self.screen.fill(self.bgcolor)
 
+    def pick_spot_in_zone(self, zone):
+        """ Picks a spot in one of the eight background zones """        
+        if zone == 1:
+            min_x = 0
+            min_y = 0
+            max_x = int((1/6)*self.act_w)
+            max_y = int((1/6)*self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int( numpy.random.normal(mid_x, (1/20)*self.act_w) )
+            Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 2:
+            min_x = int((1/6)*self.act_w)
+            min_y = 0
+            max_x = int((5/6)*self.act_w)
+            max_y = int((1/6)*self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int( numpy.random.normal(mid_x, (1/6*self.act_w)) )
+            Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 3:
+            min_x = int((5/6)*self.act_w)
+            min_y = 0
+            max_x = int(self.act_w)
+            max_y = int((1/6)*self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int(numpy.random.normal(mid_x, (1/20)*self.act_h))
+            Y = int(numpy.random.normal(mid_y, (1/20)*self.act_h))
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 4:
+            min_x = int((5/6)*self.act_w)
+            min_y = int((1/6)*self.act_h)
+            max_x = int(self.act_w)
+            max_y = int((5/6)*self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int(numpy.random.normal(mid_x, (1/20)*self.act_h))
+            Y = int(numpy.random.normal(mid_y, (1/6)*self.act_h))
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 5:
+            min_x = int((5/6)*self.act_w)
+            min_y = int((5/6)*self.act_h)
+            max_x = int(self.act_w)
+            max_y = int(self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int(numpy.random.normal(mid_x, (1/20)*self.act_h))
+            Y = int(numpy.random.normal(mid_y, (1/20)*self.act_h))
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 6:
+            min_x = int((1/6)*self.act_w)
+            min_y = int((5/6)*self.act_h)
+            max_x = int((5/6)*self.act_w)
+            max_y = int(self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int( numpy.random.normal(mid_x, (1/6*self.act_w)) )
+            Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 7:
+            min_x = 0
+            min_y = int((5/6)*self.act_h)
+            max_x = int((1/6)*self.act_w)
+            max_y = int(self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int( numpy.random.normal(mid_x, (1/20)*self.act_w) )
+            Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        elif zone == 8:
+            min_x = 0
+            min_y = int((1/6)*self.act_h)
+            max_x = int((1/6)*self.act_w)
+            max_y = int((5/6)*self.act_h)
+            mid_x = int((max_x + min_x) / 2)
+            mid_y = int((max_y + min_y) / 2)
+            X = int(numpy.random.normal(mid_x, (1/20)*self.act_h))
+            Y = int(numpy.random.normal(mid_y, (1/6)*self.act_h))
+            if X < min_x:
+                X = min_x
+            elif X > max_x:
+                X = max_x
+            elif Y < min_y:
+                Y = min_y
+            elif Y > max_y:
+                Y = max_y
+        else:
+            X = 0
+            Y = 0
+            if self.debug:
+                self.write_to_log("ERROR:  Invalid zone ID passed to Settings.pick_spot_in_zone()")         
+
+        if self.debug:
+            log_text = []
+            log_text.append(f"Screen coordinates ({X}, {Y}) choosen in zone #{zone}.")
+            log_text.append(f"Screen dimensions are {self.act_w} wide by {self.act_h} high.")
+            log_text.append(f"Minimum (x, y) are ({min_x}, {min_y}).")
+            log_text.append(f"Maximum (x, y) are ({max_x}, {max_y}).")
+            log_text.append(f"Mid (x, y) are ({mid_x}, {mid_y}).")
+            self.write_to_log(log_text)
+
+        return (X, Y)
+
+    def pull_faraway_pix(self, pix_name):
+        
+        pix_path = False
+        if isinstance(pix_name, str):
+            if pix_name.lower() == "asteroid":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Asteroids")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose asteroid pix!")
+            elif pix_name.lower() == "black_hole":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Black_Holes")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose black hole pix!")
+            elif pix_name.lower() == "comet":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Comets")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose comet pix!")
+            elif pix_name.lower() == "galaxy":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Galaxies")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose galaxy pix!")
+            elif pix_name.lower() == "gas_giant":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Gas_Giants")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose gas giant pix!")
+            elif pix_name.lower() == "nebula":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Nebulae")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose nebula pix!")
+            elif pix_name.lower() == "quasar":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Quasars")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose quasar pix!")
+            elif pix_name.lower() == "sun":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Suns")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose sun pix!")
+            elif pix_name.lower() == "moon":
+                pix_path = choose_random_file("Pix/Faraway_Objects/Moons")
+                if not pix_path and self.debug:
+                    self.write_to_log(f"ERROR:  Can't choose moon pix!")
+            else:
+                if self.debug:
+                    self.write_to_log(f"ERROR:  Pix name {pix_name} not a valid choice.")
+        else:
+            if self.debug:
+                self.write_to_log("ERROR:  Pix name has to be a string for Settings.pull_faraway_pix()")
+        
+        if pix_path:
+            self.faraway_pixies.append(pygame.image.load_extended(pix_path))
+            self.faraway_pixies[-1].convert_alpha()
+            if self.debug:
+                self.write_to_log(f"Image at {pix_path} choosen for background...")
+
+        return pix_path
+
+    def pick_faraway_object(self, zone):
+        dice_roll = random.randint(1, NUM_FARAWAY_OBJECT_CAT)
+        if dice_roll == 1:
+            if self.pull_faraway_pix("asteroid"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling asteroid at random in Settings.pick_faraway_object()")
+        elif dice_roll == 2:
+            if self.pull_faraway_pix("black_hole"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling black hole at random in Settings.pick_faraway_object()")
+        elif dice_roll == 3:
+            if self.pull_faraway_pix("comet"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling comet at random in Settings.pick_faraway_object()")
+        elif dice_roll == 4:
+            if self.pull_faraway_pix("galaxy"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling galaxy at random in Settings.pick_faraway_object()")
+        elif dice_roll == 5:
+            if self.pull_faraway_pix("gas_giant"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling gas giant at random in Settings.pick_faraway_object()")
+        elif dice_roll == 6:
+            if self.pull_faraway_pix("nebula"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling nebula at random in Settings.pick_faraway_object()")
+        elif dice_roll == 7:
+            if self.pull_faraway_pix("quasar"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling quasar at random in Settings.pick_faraway_object()")
+        elif dice_roll == 8:
+            if self.pull_faraway_pix("sun"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling sun at random in Settings.pick_faraway_object()")
+        elif dice_roll == 8:
+            if self.pull_faraway_pix("moon"):
+                self.pix_xy.append(self.pick_spot_in_zone(zone))
+            elif self.debug:
+                self.write_to_log("ERROR pulling moon at random in Settings.pick_faraway_object()")
+        elif self.debug:
+            self.write_to_log("Unspecified ERROR in Settings.pick_faraway_object.()")
+    
     def set_starfield(self):
         """ set starfield of random stars with random colors """
         self.starfield_clr = []
@@ -240,11 +533,19 @@ class Settings:
                     self.starfield_clr.append(rand_clr())     # assign color
                     self.starfield_xy.append( (w, h) )
 
+        for zone in range(1, (NUM_ZONES+1)):
+            if random.uniform(0, 1) < DEFAULT_CHANCE_FOR_FARAWAY_OBJECT:
+                self.pick_faraway_object(zone)
+        
     def draw_stars(self):
         """ Draw stars on current background """
         for ind in range(len(self.starfield_xy)):
             self.screen.set_at(self.starfield_xy[ind], \
                 self.starfield_clr[ind])
+
+        if self.faraway_pixies:
+            for pixie in range( 0, len(self.faraway_pixies) ):
+                self.screen.blit(self.faraway_pixies[pixie], self.pix_xy[pixie])
 
     def restore_screen(self):
          # declaration of Surface object

@@ -10,7 +10,8 @@ MainEngine = engine.Engine(MainSettings)
 
 #create homeworld
 MainEngine.create_homeworld()
-
+# MainEngine.celestials[0].load_pix("Pix\Homeworlds\Terran\\1.png")
+# MainEngine.celestials[0].load_rings("Pix\Homeworlds\Rings\\3.png")
 # create moons
 MainEngine.create_moon()
 # MainEngine.celestials[-1].vx = 0

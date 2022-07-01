@@ -1,43 +1,40 @@
 # Code for projectile
 
-from asyncio.windows_events import NULL
-from tkinter.font import families
-import pygame, math, random, numpy
+import pygame, math, random, numpy, time
 import settings, cosmos, cannonball
 
 def check_tanks(tanks, _settings):
-    destroyed_player_tanks = []
+    destroyed_tanks = []
     
     if tanks:
         for tank in tanks[:]:
             if not tank.active:
                 if _settings.debug:
-                    print(f"\n{tank.name} being destroyed...")    
+                    _settings.write_to_log(f"{tank.name} being destroyed...")    
                 if tank.balls:
                     if tank != tanks[0]:
                     # give destroyed tank's balls to first tank's balls
                         tank.give_balls(tanks[0])
                         if _settings.debug:
-                            print(f"\nBalls from {tank.name} given to first tank's ball list.")
+                            _settings.write_to_log(f"Cannonballs from {tank.name} given to {tanks[0].name}'s cannonball list.")
                     elif tank != tanks[-1]:
                     # give destroyed tank's balls to last tank's balls
                         tank.give_balls(tanks[-1])
                         if _settings.debug:
-                            print(f"\nBalls from {tank.name} given to last tank's ball list.")
+                            _settings.write_to_log(f"Cannonballs from {tank.name} given to {tanks[-1].name}'s ball list.")
                     else:
                         if _settings.debug:
-                            print(f"\nOnly one tank left, can't give balls away!")
-                if tank.player_tank:
-                    destroyed_player_tanks.append(tank)
+                            _settings.write_to_log(f"Only one tank left, can't give cannonballs away!")
+                destroyed_tanks.append(tank)
                 tanks.remove(tank)
                 if _settings.debug:
-                    print(f"Tank successfully destroyed!")
-        if not destroyed_player_tanks:
-            destroyed_player_tanks = False
+                    _settings.write_to_log(f"Tank successfully destroyed!")
+        if not destroyed_tanks:
+            destroyed_tanks = False
     else:
-        destroyed_player_tanks = False
+        destroyed_tanks = False
 
-    return destroyed_player_tanks
+    return destroyed_tanks
  
 class Tank (cosmos.Celestial):
     """ Class for surface roaming tanks """
@@ -81,7 +78,8 @@ class Tank (cosmos.Celestial):
 
         self.balls = []                  # empty active cannonballs
         self.chambered_ball = False              # ball chambered or not
-        self.num_balls = 0
+        # self.num_balls = 0
+        self.total_balls = 0
 
         self.player_tank = True     # default player tank
         self.winner = False         # not a winner yet!
@@ -97,6 +95,7 @@ class Tank (cosmos.Celestial):
         self.move_CCW_key = settings.MOVE_TANK_CCW
         self.move_CW_key = settings.MOVE_TANK_CW
         self.detonate_ball_key = settings.DETONATE_BALL
+        self.eject_ball_key = settings.EJECT_BALL
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -105,6 +104,11 @@ class Tank (cosmos.Celestial):
         self.moving = False
         self.targeting = False
         self.target = False
+        self.tolerance = settings.DEFAULT_AI_TOLERANCE
+        self.restrict_movement = True
+        self.fire_weight = settings.DEFAULT_AI_FIRE_WEIGHT
+        # timer to slow down AI tank
+        self.start_wait = 0
 
         self.mu = 0         # orbital constant
 
@@ -121,8 +125,8 @@ class Tank (cosmos.Celestial):
         
         if self.launch_angle < 0:
             self.launch_angle = 0
-        elif self.launch_angle > 2*math.pi:
-            self.launch_angle = self.launch_angle % 2*math.pi
+        elif self.launch_angle > (2*math.pi):
+            self.launch_angle = self.launch_angle % (2*math.pi)
         
     def reset_default_launch(self):
         self.launch_speed = settings.DEFAULT_ESCAPE_FRAC * self.escape_v            # default speed
@@ -150,6 +154,11 @@ class Tank (cosmos.Celestial):
     
     def get_surface_pos(self):
         """ set launch point based on position angle (pos_angle) """
+        if self.pos_angle < 0:
+            self.pos_angle = math.pi + self.pos_angle
+        if self.pos_angle > (2*math.pi):
+            self.pos_angle = self.pos_angle % (2*math.pi)
+        
         self.x = self.homeworld.radius * math.cos(self.pos_angle) \
             + self.homeworld.x
         self.y = self.homeworld.radius * math.sin(self.pos_angle) \
@@ -178,16 +187,26 @@ class Tank (cosmos.Celestial):
         
         if not self.chambered_ball:
             self.balls.append(cannonball.Cannonball(self.sts, self.celestials))
-            self.num_balls = len(self.balls)    # set number of balls counted in balls list
+            # self.num_balls = len(self.balls)    # set number of balls counted in balls list
+            self.total_balls += 1
             self.chambered_ball = True  # set index of currently chambered ball
             self.balls[-1].set_xy(self.x, self.y)
             self.fix_launch_velocity()
             [self.balls[-1].vx, self.balls[-1].vy] = self.get_launch_velocity()
             self.balls[-1].chambered = True
+            self.balls[-1].name = f"{self.name}'s Cannonball #{self.total_balls}"
             chamber_success = True
 
         return chamber_success
 
+    def eject_ball(self):
+        if self.chambered_ball:
+            for ball in self.balls:
+                if ball.chambered:
+                    self.balls.remove(ball)
+                    # self.num_balls = len(self.balls)
+                    self.chambered_ball = False
+                    
     def fire_ball(self):
         """ Fire chambered cannonball """
         fire = False
@@ -199,6 +218,7 @@ class Tank (cosmos.Celestial):
             [self.balls[-1].vx, self.balls[-1].vy] = self.get_launch_velocity()
             [self.balls[-1].x, self.balls[-1].y] = (self.x, self.y)
             self.balls[-1].get_screenxy()
+            self.balls[-1].fuse_start = time.time()
             fire = True
         
         return fire
@@ -213,31 +233,27 @@ class Tank (cosmos.Celestial):
     def check_balls(self, tanks):
         """ Check status of active balls """
 
-        for ball in self.balls:
+        for ball in self.balls[:]:
             if ball.active:
                 ball.check_off_screen()
                 if not ball.armed and not ball.exploding:
-                    ball.fuse_timer += 1
-                    if ball.fuse_timer > settings.FUSE_THRESHOLD:
+                    if ( time.time() - ball.fuse_start ) > settings.DEFAULT_FUSE_TIME:
                         ball.armed = True
                         ball.color = settings.DEFAULT_ARMED_COLOR
                 if ball.exploding:
-                    if ball.stuck_to_celestial:
-                        ball.get_surface_pos()
-                    if not (ball.explode_timer % settings.SKIP_COLOR):
-                        ball.color = (
-                            random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                    ball.explode_timer += 1
-                    if ball.explode_timer > settings.EXPLODE_THRESHOLD:
+                    if ( time.time() - ball.explode_start ) > settings.DEFAULT_EXPLODE_TIME:
                         ball.exploding = False
                         ball.active = False
+                    else:
+                        if ball.stuck_to_celestial:
+                            ball.get_surface_pos()
+                        ball.flash()
+                        ball.expand()
                 ball.check_impact(tanks)
-                   
-        for ball in self.balls[:]:
+            
+        for ball in self.balls:
             if not ball.active and not ball.chambered:
                 self.balls.remove(ball)
-        
-        self.num_balls = len(self.balls)
 
     def detonate_ball(self):
         blew_up = False
@@ -261,33 +277,37 @@ class Tank (cosmos.Celestial):
         pygame.draw.line(self.sts.screen, self.arrow_color, [self.screen_x, self.screen_y], [tip_x, tip_y])
         return (tip_x, tip_y)
 
-    def display_tank_values(self):
+    def write_tank_values(self):
         """Print properties of tank"""
         printx = 0
         printy = 0
-        print(f"\n")
-        super().display_values()
-        print(f"The tanks's launch angle is {self.launch_angle} radians.")
-        print(f"The tank's launch speed is {self.launch_speed}.")
+        tank_text = []
+        super().write_values()
+        tank_text.append("ADDITIONAL INFORMATION FOR TANK:")
+        tank_text.append(f"The tanks's launch angle is {self.launch_angle} radians.")
+        tank_text.append(f"The tank's launch speed is {self.launch_speed}.")
         (printx, printy) = self.get_launch_velocity()
-        print(f"The tank's launch velocity is <{printx, printy}>.")
+        tank_text.append(f"The tank's launch velocity is ({printx, printy}).")
         (printx, printy) = self.draw_launch_v()
-        print(f"The tip of the launch vectory on screen should be:  <{printx, printy}>.")
+        tank_text.append(f"The tip of the launch vector on screen should be:  <{printx, printy}>.")
 
     def display_ball_stats(self):
-        print(f"Balls in memory for {self.name}:  {len(self.balls)}.")
-        print(f"Counted balls for {self.name}:  {self.num_balls}.")
+        ball_text = []
+        ball_text.append(f"INFORMATION FOR {self.name}'s CANNONBALLS:")
+        ball_text.append(f"Cannonballs in memory for {self.name}:  {len(self.balls)}.")
+        ball_text.append(f"Total cannonballs fired or chambered for {self.name}:  {self.total_balls}.")
+        self.sts.write_to_log(ball_text)
         ball_number = 0
         for ball in self.balls:
             ball_number += 1
-            print(f"\nBall #{ball_number} of {self.name}:")
-            ball.display_ball_values()
+            (f"{self.name}'s CANNONBALL #{ball_number} OF {len(self.balls)}:")
+            ball.write_ball_values()
 
     def check_smush(self, body):
         if not body.homeworld and super().check_hit(body):
             self.active = False
             if self.sts.debug:
-                print(f"{self.name} has been smushed by {body.name}!")
+                self.sts.write_to_log(f"{self.name} has been smushed by {body.name}!")
 
     def set_enemy_tank(self):
         """ Sets tank to an enemy """
@@ -297,6 +317,7 @@ class Tank (cosmos.Celestial):
         self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
         self.get_surface_pos()
         self.reset_default_launch()
+        self.start_wait = time.time()
 
     def give_balls(self, tank):
         if self.balls:
@@ -328,7 +349,10 @@ class Tank (cosmos.Celestial):
             radical_factor = (self.mu * self.target.pos_angle) / (self.pos_angle**2 * self.launch_speed**2)
             if radical_factor > 0:
                 self.angle_guess = math.asin(math.sqrt(radical_factor))
-                self.angle_guess = self.angle_guess % math.pi
+                if self.angle_guess < 0:
+                    self.angle_guess = math.pi + self.angle_guess
+                if self.angle_guess > (2*math.pi):
+                    self.angle_guess = self.angle_guess % (2*math.pi)
                 guessed = True
             else:
                 self.pick_launch_angle()
@@ -357,56 +381,69 @@ class Tank (cosmos.Celestial):
     def quick_target(self):
         self.pick_launch_speed()
         if not self.guess_launch_angle():
-            self.guess_launch_speed()
-        
+            if not self.guess_launch_speed():
+                self.targeting = False
+            
     def check_moving(self):
-        if abs(self.pos_angle - self.pos_target) < 2*self.radian_step:
+        angle_between = self.pos_target - self.pos_angle
+        angle_between = (angle_between + math.pi) % (2*math.pi) - math.pi
+        
+        if abs(angle_between) < self.tolerance*self.radian_step:
             self.moving = False
             if self.sts.debug:
-                print(f"\n{self.name} at target position, not moving...")
+                self.sts.write_to_log(f"{self.name} at target position, not moving...")
         else:
             self.moving = True
             if self.sts.debug:
-                print(f"\n{self.name} not at target position, moving...")
+                self.sts.write_to_log(f"{self.name} not at target position, moving...")
+        
+        return angle_between
 
     def check_targeting(self):
         angle_ready = False
         speed_ready = False
+
+        angle_between = self.angle_guess - self.launch_angle
+        angle_between = (angle_between + math.pi) % (2*math.pi) - math.pi
         
-        if abs(self.launch_angle - self.angle_guess) < 2*self.radian_step:
+        if abs(angle_between) < (self.tolerance*self.radian_step):
             angle_ready = True
-        if abs(self.launch_speed - self.speed_guess) < 2*self.speed_step:
+        if abs(self.launch_speed - self.speed_guess) < (self.tolerance*self.speed_step):
             speed_ready = True
 
         if angle_ready and speed_ready and self.targeting:
             if self.sts.debug:
-                print(f"\n{self.name} firing solution within tolerances, not adjusting firing solution...")
-                print(f"\n{self.name} attempting to fire cannonball...")
-    
+                self.sts.write_to_log(f"{self.name} firing solution within tolerances, not adjusting firing solution...")
+                self.sts.write_to_log(f"{self.name} attempting to fire cannonball...")
             if self.chambered_ball:
                 self.fire_ball()
                 self.targeting = False
             elif self.sts.debug:
-                print("\nError firing cannonball, no ball chambered!")
+                self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
         elif self.targeting:
-            if self.sts.debug:
-                print(f"\n{self.name} firing solution not within tolerances, adjusting firing solution...")
-            if self.angle_guess > self.launch_angle and not angle_ready:
-                self.launch_angle += self.radian_step
-                if self.sts.debug:
-                    print(f"\n{self.name} adjusted targeting angle one unit CCW...")
-            elif self.angle_guess < self.launch_angle and not angle_ready:
+            if self.sts.debug and not angle_ready:
+                self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
+            if self.sts.debug and not speed_ready:
+                if self.sts.debug and not angle_ready:
+                    self.sts.write_to_log(f"{self.name} Launch speed not within tolerances, adjusting firing solution...")
+            # if abs(angle_between) < self.tolerance*self.radian_step:
+            #     angle_between = 0
+            if angle_between > 0  and not angle_ready:
+                    self.launch_angle += self.radian_step
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"{self.name} adjusted targeting angle one unit CCW...")
+            elif angle_between < 0 and not angle_ready:
                 self.launch_angle -= self.radian_step
                 if self.sts.debug:
-                    print(f"\n{self.name} adjusted targeting angle one unit CW...")
+                        self.sts.write_to_log(f"{self.name} adjusted targeting angle one unit CW...")      
             elif self.launch_speed > self.speed_guess and not speed_ready:
                 self.launch_speed -= self.speed_step
                 if self.sts.debug:
-                    print(f"\n{self.name} lowered launch speed one unit...")
+                    self.sts.write_to_log(f"{self.name} lowered launch speed one unit...")
             elif self.launch_speed < self.speed_guess and not speed_ready:
                 self.launch_speed += self.speed_step
                 if self.sts.debug:
-                    print(f"\n{self.name} increased launch speed one unit...")
+                    self.sts.write_to_log(f"{self.name} increased launch speed one unit...")
 
     def pick_position(self):
             if random.randint(0, 1):
@@ -415,41 +452,42 @@ class Tank (cosmos.Celestial):
             else:
                 self.pos_target = random.uniform(
                     (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
+            
+            if self.pos_target < 0:
+                self.pos_target = (2*math.pi) + self.pos_target
+            if self.pos_target >= (2*math.pi):
+                self.pos_target = self.pos_target % (2*math.pi)
+            
+            if self.restrict_movement:
+                if self.pos_target < math.pi and self.pos_target > math.pi/2:
+                    self.pos_target = math.pi
+                elif self.pos_target > 0 and self.pos_target < math.pi/2:
+                    self.pos_target = 0
+
             if self.sts.debug:
-                print(f"\n{self.name} choose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
+                self.sts.write_to_log(
+                    f"{self.name} chose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
             
             self.check_moving()
         
     def move_to_position_target(self):
-        self.check_moving()
-        if self.pos_target > self.pos_angle and self.moving:
+        angle_between = self.check_moving()
+
+        if angle_between > 0 and self.moving:
             self.pos_angle += self.radian_step
             self.get_surface_pos()
             if self.sts.debug:
-                print(f"\n{self.name} moved one unit CCW...")
+                self.sts.write_to_log(f"{self.name} moved one unit CCW...")
             self.reset_default_launch()
-        elif self.pos_target < self.pos_angle and self.moving:
+        elif angle_between < 0 and self.moving:
             self.pos_angle -= self.radian_step
             self.get_surface_pos()
             if self.sts.debug:
-                print(f"\n{self.name} moved one unit CW...")
+                self.sts.write_to_log(f"{self.name} moved one unit CW...")
             self.reset_default_launch()
 
-    def pick_position(self):
-            if random.randint(0, 1):
-                self.pos_target = random.uniform(
-                    (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
-            else:
-                self.pos_target = random.uniform(
-                    (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
-            if self.sts.debug:
-                print(f"\n{self.name} choose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
-            
-            self.check_moving()
-    
     def pick_move_or_shoot(self):
-        if random.randint(0, 1):
-        # if True:    
+        if random.uniform(0, 1) < self.fire_weight:
             self.moving = False
             self.targeting = True
         else:
@@ -460,6 +498,8 @@ class Tank (cosmos.Celestial):
             self.moving = False
             self.targeting = False
             self.detonate_ball()
+            if self.chambered_ball:
+                self.eject_ball()
 
     def pick_target(self, _tanks):
         """ Pick a target amongst list of tanks """
@@ -469,23 +509,27 @@ class Tank (cosmos.Celestial):
                 self.target = _tank
  
     def make_choices(self, _tanks):
-     
         if not self.player_tank:
-            self.pick_target(_tanks)
-            if self.moving and not self.chambered_ball:
-                self.move_to_position_target()
-            elif self.targeting:
-                if not self.chambered_ball:
-                    self.chamber_ball()
-                    # self.simple_target()
-                    self.quick_target()
-                if self.chambered_ball:
-                    self.check_targeting()
+            if ( time.time() - self.start_wait) > settings.DEFAULT_AI_WAIT_TIME:
+                self.pick_target(_tanks)
+                if self.moving and not self.chambered_ball:
+                    self.move_to_position_target()
+                elif self.targeting and self.target:
+                    if not self.chambered_ball:
+                        self.chamber_ball()
+                        # self.simple_target()
+                        self.quick_target()
+                    if self.chambered_ball:
+                        self.check_targeting()
+                    else:
+                        self.sts.write_to_log(f"ERROR:  {self.name} can't chamber a ball!")
                 else:
-                    print(f"\nERROR:  {self.name} can't chamber a ball!")
-            else:
-                self.pick_move_or_shoot()
+                    self.pick_move_or_shoot()
 
-            if self.moving and self.chambered_ball:
-                print(f"\nERROR:  {self.name} attempting to move with a chambered ball!")
+                if self.moving and self.chambered_ball:
+                    self.eject_ball()
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"ERROR:  {self.name} attempting to move with a chambered ball!")
+                
+                self.start_wait = time.time()
             

@@ -45,13 +45,13 @@ def bounce_v(m1, m2, x1, x2, v1, v2):
     return (vel1, vel2)
 
 def break_celestial(broke_body, celestials, break_plane):
-    if broke_body.radius >= broke_body.sts.crit_radius:
+    if broke_body.mass >= broke_body.sts.crit_mass:
         broke_body.radius /= 2
         broke_body.get_mass()
         broke_body.set_screen_radius()
         if broke_body.sts.debug:
-            print(f"\n{broke_body.name} has been shrunk by another...")
-            broke_body.display_values()
+            broke_body.sts.write_to_log(f"{broke_body.name} has been shrunk by another...")
+            broke_body.write_values()
 
         celestials.append(Celestial(broke_body.sts))
         celestials[-1].set_attr(
@@ -62,8 +62,8 @@ def break_celestial(broke_body, celestials, break_plane):
         celestials[-1].x = broke_body.x
         celestials[-1].y = broke_body.y
         if broke_body.sts.debug:
-            print(f"\n{celestials[-1].name} has been created by another...")
-            celestials[-1].display_values()
+            broke_body.sts.write_to_log(f"{celestials[-1].name} has been created by another...")
+            celestials[-1].write_values()
 
         # old_displacement is a vector that defines displacement of old body's position vector
         # rotate this vector 90-degrees clockwise...
@@ -82,24 +82,24 @@ def break_celestial(broke_body, celestials, break_plane):
         broke_body.bounce(celestials[-1])
      
         if broke_body.sts.debug:
-            print(f"\nNew values for {broke_body.name}:")
-            broke_body.display_values()
+            broke_body.sts.write_to_log(f"New values for {broke_body.name}:")
+            broke_body.write_values()
         if broke_body.sts.debug:
-            print(f"\nNew values for {celestials[-1].name}:")
-            celestials[-1].display_values()
+            broke_body.sts.write_to_log(f"New values for {celestials[-1].name}:")
+            celestials[-1].write_values()
     elif not broke_body.homeworld:
         broke_body.active = False
         if broke_body.sts.debug:
-            print(f"{broke_body.name} has been marked for destruction by another...")
+            broke_body.sts.write_to_log(f"{broke_body.name} has been marked for destruction by another...")
 
 def check_celestials(celestials):
     for celestial in celestials[:]:
         if not celestial.active and not celestial.homeworld:
             if celestials[0].sts.debug:
-                print(f"\n{celestial.name} being destroyed...")    
+                celestials[0].sts.write_to_log(f"\n{celestial.name} being destroyed...")    
             celestials.remove(celestial)
             if celestials[0].sts.debug:
-                print(f"Success!")    
+                celestials[0].sts.write_to_log(f"Successfully destroyed celestial!")    
                     
 class Celestial:
     """ Class to hold data & functions for worlds & moons """
@@ -141,7 +141,7 @@ class Celestial:
         if self.sts.screen != None:
             (self.width, self.height) = pygame.display.get_window_size()
         else:
-            print("Warning!  No screen inialized!")
+            self.sts.write_to_log("Warning!  No screen inialized!")
 
         # reset screen x and y coordinates
         self.get_screenxy()
@@ -150,7 +150,9 @@ class Celestial:
         self.set_screen_radius()
 
     def set_screen_radius(self):
-        self.screen_rad = self.radius * self.sts.screen_dist_scale
+        self.screen_rad = int(self.radius * self.sts.screen_dist_scale)
+        if self.screen_rad < 1:
+            self.screen_rad = 1
     
     def get_mass(self):
         """ Sets mass of body based on radius and density """
@@ -217,33 +219,42 @@ class Celestial:
         (self.screen_x, self.screen_y) = self.set_screenxy(self.x, self.y)
         return (self.screen_x, self.screen_y)
 
+    def place_on_screen(self, X, Y):
+        """ Set object's game (x,y) coordinates to coordinates on screen """    
+        
+        self.x = int((X - self.width/2)*(1/self.sts.screen_dist_scale))
+        self.y = int((self.height/2 - Y)*(1/self.sts.screen_dist_scale))
+
     def draw_bodycircle(self):
         """ Draws a simple circle to represent world """
         pygame.draw.circle(self.sts.screen, self.color, (self.screen_x, \
             self.screen_y), self.screen_rad)
 
-    def update_settings(new_settings):
+    def update_settings(self, new_settings):
         """ Updates settings class object """
         self.sts = new_settings
 
-    def display_values(self):
+    def write_values(self):
         """Print properties of world"""
-        print(f"The celestial body's name is {self.name}.")
+        text2write = []
+        text2write.append(f"CURRENT VALUES FOR CELESTIAL BODY:  {self.name}")
         if self.homeworld == True:
-            print("This is the homeworld.")
+            text2write.append("This is the homeworld.")
         else:
-            print("This is not the homeworld.")
-        print(f"The celestial boyd's density is {self.density} kg/m^3.")
-        print(f"The celestial body's mass is {self.mass} kg.")
-        print(f"The Earth's mass is {settings.EARTH_MASS} kg.")
-        print(f"The celestial body's radius is {self.radius} km.")
-        print(f"The celestial body's coordinates are ({self.x}, {self.y}).")
-        print(f"The celestial body's velocity is ({self.vx}, {self.vy}).")
-        print(f"The celestial body's speed is {self.get_speed()} km/s.")
-        print(f"The celestial body's acceleration is ({self.ax}, {self.ay}).")         
-        print(f"The celestial body's screen x and y coordinates are ",end='')
-        print(f"({self.screen_x}, {self.screen_y}).")
-        print(f"The celestial body's screen radius is {self.screen_rad}.")
+            text2write.append("This is not the homeworld.")
+            text2write.append(f"The celestial boyd's density is {self.density} kg/m^3.")
+            text2write.append(f"The celestial body's mass is {self.mass} kg.")
+            text2write.append(f"The Earth's mass is {settings.EARTH_MASS} kg.")
+            text2write.append(f"The celestial body's radius is {self.radius} km.")
+            text2write.append(f"The celestial body's coordinates are ({self.x}, {self.y}).")
+            text2write.append(f"The celestial body's velocity is ({self.vx}, {self.vy}).")
+            text2write.append(f"The celestial body's speed is {self.get_speed()} km/s.")
+            text2write.append(f"The celestial body's acceleration is ({self.ax}, {self.ay}).")         
+            text2write.append(
+                f"The celestial body's screen x and y coordinates are (s{self.screen_x}, {self.screen_y}).")
+            text2write.append(f"The celestial body's screen radius is {self.screen_rad}.")
+        
+        self.sts.write_to_log(text2write)
 
     def get_accel(self, celestial):
         """ Calculate acceleration from other celestial body"""
@@ -321,13 +332,13 @@ class Celestial:
         celestial.vy *= math.sqrt(self.sts.energy_loss)
 
     def break_self(self, celestials, break_plane):
-        if self.radius >= self.sts.crit_radius:                       
+        if self.mass >= self.sts.crit_mass:                       
             self.radius /= 2
             self.get_mass()
             self.set_screen_radius()
             if self.sts.debug:
-                print(f"\n{self.name} has shrunk itself...")
-                self.display_values()
+                self.sts.write_to_log(f"{self.name} has shrunk itself...")
+                self.write_values()
         
             celestials.append(Celestial(self.sts))
             celestials[-1].set_attr(
@@ -338,8 +349,8 @@ class Celestial:
             celestials[-1].x = self.x
             celestials[-1].y = self.y
             if self.sts.debug:
-                print(f"\n{celestials[-1].name} has been created by {self.name}...")
-                celestials[-1].display_values()
+                self.sts.write_to_log(f"{celestials[-1].name} has been created by {self.name}...")
+                celestials[-1].write_values()
            
             # old_displacement is a vector that defines displacement of old body's position vector
             # rotate this vector 90-degrees clockwise...
@@ -358,47 +369,47 @@ class Celestial:
             self.bounce(celestials[-1])
 
             if self.sts.debug:
-                print(f"\nNew vlues for {self.name}:")
-                self.display_values()
+                self.sts.write_to_log(f"New values for {self.name}:")
+                self.write_values()
             
             if self.sts.debug:
-                print(f"\nNew valuse for {celestials[-1].name}")
-                celestials[-1].display_values()
+                self.sts.write_to_log(f"nNew values for {celestials[-1].name}")
+                celestials[-1].write_values()
         elif not self.homeworld:
             self.active = False
             if self.sts.debug:
-                print(f"\n{self.name} has marked itself for destruction...")
+                self.sts.write_to_log(f"{self.name} has marked itself for destruction...")
 
     def shatter(self, celestials):
         """ Check for collision, break apart and bounce if so """
         for celestial in celestials[:]:
             if celestial.name != self.name and self.check_hit(celestial):
-                    if self.mass > (celestial.mass * self.sts.crit_mass) and not celestial.homeworld:
+                    if self.mass > (celestial.mass * self.sts.crit_mass_ratio) and not celestial.homeworld:
                         self.bounce(celestial)
                         break_celestial(celestial, celestials, celestial.get_unit(self.x, self.y))
-                    elif (self.mass * self.sts.crit_mass) < celestial.mass and not self.homeworld:
+                    elif (self.mass * self.sts.crit_mass_ratio) < celestial.mass and not self.homeworld:
                         self.bounce(celestial)
                         self.break_self(celestials, self.get_unit(celestial.x,  celestial.y))
                     # fix overlap if any
                     self.fix_overlap(celestial)
                                                                
     def check_off_screen(self):
-        if (self.screen_x + self.screen_rad) < 0:
+        if (self.screen_x + self.screen_rad) < (self.width - (self.width*(1 + settings.DEFAULT_VIRTUAL_SCREEN))):
             self.active = False
             if self.sts.debug:
-                print(f"\n{self.name} is being removed for being too far left off-screen...")
-        elif (self.screen_x - self.screen_rad) > self.width:
+                self.sts.write_to_log(f"{self.name} is being removed for being too far left off-screen...")
+        elif (self.screen_x - self.screen_rad) > self.width*(1 + settings.DEFAULT_VIRTUAL_SCREEN):
             self.active = False
             if self.sts.debug:
-                print(f"\n{self.name} is being removed for being too far right off-screen...")
-        elif (self.screen_y + self.screen_rad) < 0:
+                self.sts.write_to_log(f"{self.name} is being removed for being too far right off-screen...")
+        elif (self.screen_y + self.screen_rad) < (self.height - (self.height*(1 + settings.DEFAULT_VIRTUAL_SCREEN))):
             self.active = False
             if self.sts.debug:
-                print(f"\n{self.name} is being removed for being too far up off-screen...")
-        elif (self.screen_y + self.screen_rad) > self.height:
+                self.sts.write_to_log(f"{self.name} is being removed for being too far up off-screen...")
+        elif (self.screen_y + self.screen_rad) > self.height*(1 + settings.DEFAULT_VIRTUAL_SCREEN):
             self.active = False
             if self.sts.debug:
-                print(f"\n{self.name} is being removed for being too far down off-screen...")
+                self.sts.write_to_log(f"{self.name} is being removed for being too far down off-screen...")
    
     def move(self, celestials):
         """ Move object based on current velocity """

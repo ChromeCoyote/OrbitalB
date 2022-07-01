@@ -1,10 +1,8 @@
 # Main Game "Engine"
 
+
 import math, pygame, random, sys
-
 import numpy
-
-from numpy import multiply
 import settings, cosmos, tank, cannonball
 
 class Engine:
@@ -49,10 +47,14 @@ class Engine:
 
         cnt = len(self.celestials)
         if cnt > 0:
+            if cnt == 1:
+                new_moon_color = settings.DEFAULT_LUNA_COLOR
+            else:
+                new_moon_color = (
+                    random.randint(0, 255),random.randint(0, 255),random.randint(0, 255))
             self.celestials.append(cosmos.Celestial(self.sts))
             self.celestials[-1].set_attr(f'Moon #{cnt + 1}', False, settings.LUNA_DENSITY, \
-                settings.LUNA_RADIUS, (
-                    random.randint(0, 255),random.randint(0, 255),random.randint(0, 255)) )
+                settings.LUNA_RADIUS, new_moon_color)
             speed = math.sqrt(settings.GRAV_CONST * self.celestials[0].mass / \
                 self.celestials[-1].radius) / 3
             orbit_dist = self.celestials[0].radius * 2
@@ -63,6 +65,49 @@ class Engine:
         
         return moon_created
 
+    def create_asteroid(self):
+        asteroid_created = False
+        cnt = len(self.celestials)
+        if cnt > 0:
+            self.celestials.append(cosmos.Celestial(self.sts))
+            self.celestials[-1].set_attr(f'Asteroid #{cnt + 1}', False, settings.CERES_DENSITY, \
+                settings.CERES_RADIUS, (
+                    random.randint(0, 255),random.randint(0, 255),random.randint(0, 255)) )
+            speed = math.sqrt(settings.GRAV_CONST * self.celestials[0].mass / \
+                self.celestials[-1].radius) / 3
+            x_on_screen = int(
+                self.celestials[-1].width + self.celestials[-1].screen_rad)
+            y_on_screen = random.randint(0, self.celestials[-1].height)
+            self.celestials[-1].place_on_screen(x_on_screen, y_on_screen)
+            self.celestials[-1].set_v(-speed, 0)
+            asteroid_created = True
+            if self.celestials[-1].sts.debug:
+                self.sts.write_to_log(f"{self.celestials[-1].name} created!")
+                self.celestials[-1].write_values()
+
+        return asteroid_created
+
+    def create_comet(self):
+        comet_created = False
+        cnt = len(self.celestials)
+        if cnt > 0:
+            self.celestials.append(cosmos.Celestial(self.sts))
+            self.celestials[-1].set_attr(f'Comet #{cnt + 1}', False, settings.COMET_DENSITY, \
+                settings.COMET_RADIUS, settings.DEFAULT_COMET_COLOR)
+            speed = math.sqrt(settings.GRAV_CONST * self.celestials[0].mass / \
+                self.celestials[-1].radius) / 3
+            x_on_screen = int(
+                self.celestials[-1].width + self.celestials[-1].screen_rad)
+            y_on_screen = random.randint(0, self.celestials[-1].height)
+            self.celestials[-1].place_on_screen(x_on_screen, y_on_screen)
+            self.celestials[-1].set_v(-speed, 0)
+            asteroid_created = True
+            if self.celestials[-1].sts.debug:
+                self.sts.write_to_log(f"{self.celestials[-1].name} created!")
+                self.celestials[-1].write_values()
+
+        return comet_created
+    
     def create_tank(self):
         tank_created = False
         
@@ -81,7 +126,8 @@ class Engine:
                     if self.tanks:
                         for tank in self.tanks:
                             tank.display_ball_stats()
-                    print("\nQuit through pygame...")
+                    self.sts.write_to_log("Quit through pygame and writing log file...")
+                    self.sts.output_log_to_file()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 for tank in self.tanks:
@@ -89,21 +135,22 @@ class Engine:
                         if event.key == tank.chamber_ball_key:
                             if not tank.chamber_ball():
                                 if self.sts.debug:
-                                    print("\nError chambering ball, already one in chamber...")
+                                    self.sts.write_to_log(
+                                        f"ERROR: {tank.name} can't chamber cannonball, already one in chamber...")
+                            elif self.sts.debug:
+                                self.sts.write_to_log(f"{tank.name} chambered cannonball...")
+                                tank.balls[-1].write_ball_values()
                         elif event.key == tank.fire_ball_key:
                             if not tank.fire_ball():
                                 if self.sts.debug:
-                                    print("\nError firing ball:  none chambered")
+                                    self.sts.write_to_log(
+                                        f"ERROR: {tank.name} can't fire cannonball, nothing chambered...")
                         elif event.key == tank.increase_angle_key and tank.chambered_ball:
                             tank.launch_angle += tank.radian_step
                             tank.fix_launch_velocity()
-                            # print("\n")
-                            # ball.display_ball_values()
                         elif event.key == tank.decrease_angle_key and tank.chambered_ball:
                             tank.launch_angle -= tank.radian_step
                             tank.fix_launch_velocity()
-                            # print("\n")
-                            # ball.display_ball_values()
                         elif event.key == tank.increase_speed_key and tank.chambered_ball:
                             tank.launch_speed += tank.speed_step
                             tank.fix_launch_velocity()
@@ -120,6 +167,8 @@ class Engine:
                             tank.reset_default_launch()
                         elif event.key == tank.detonate_ball_key:
                             tank.detonate_ball()
+                        elif event.key == tank.eject_ball_key:
+                            tank.eject_ball()
 
     def draw_objects(self):
         for body in self.celestials:
@@ -166,7 +215,7 @@ class Engine:
             text_rect.center = location
         else:
             text_rect.center = self.screen_rect.center
-            print("ERROR:  Invalid text location sent to dispay_game_message")
+            self.sts.write_to_log("ERROR:  Invalid text location sent to Engine.dispay_game_message()")
         
         self.sts.screen.blit(text_to_show, text_rect)
 
@@ -191,7 +240,15 @@ class Engine:
 
             events = pygame.event.get()
             for event in events:
-                if event.type == pygame.KEYDOWN:
+                if event.type == pygame.QUIT:
+                    if self.sts.debug:
+                        if self.tanks:
+                            for tank in self.tanks:
+                                tank.display_ball_stats()
+                        self.sts.write_to_log("Quit through pygame and writing log file...")
+                        self.sts.output_log_to_file()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
                     wait4me = False
 
             self.set_font_size(48)
@@ -215,4 +272,10 @@ class Engine:
             pygame.display.flip()
                     
         if self.sts.debug:
-            print("Game over, exiting...")
+            self.sts.write_to_log("Game over, exiting...")
+
+    def meteor_shower(self):
+        if self.sts.meteor_shower:
+            chance = random.uniform(0,1)
+            if chance < self.sts.asteroid_chance:
+                self.create_asteroid()

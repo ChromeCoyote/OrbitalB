@@ -6,6 +6,7 @@ import settings
 import pygame
 import math
 import random
+import time
 
 class Cannonball(cosmos.Celestial):
     """ Class for projectile (or projectiles), child of Celestial """
@@ -38,8 +39,10 @@ class Cannonball(cosmos.Celestial):
         self.armed = False
         self.given_away = False
 
-        self.fuse_timer = 0
-        self.explode_timer = 0
+        # keep track of fuse, explosion timers
+        self.fuse_start = 0
+        self.explode_start = 0
+        
         self.mass = settings.DEFAULT_CANNONBALL_MASS
 
         self.speed = 0
@@ -68,8 +71,15 @@ class Cannonball(cosmos.Celestial):
         # self.active = False
         self.armed = False
         self.exploding = True
-        self.radius = self.explode_radius
-        self.screen_rad = self.explode_radius * self.sts.screen_dist_scale
+        # self.radius = self.explode_radius
+        # self.screen_rad = self.explode_radius * self.sts.screen_dist_scale
+        # self.set_screen_radius()
+        self.explode_start = time.time()
+    
+    def expand(self):
+        if self.exploding:
+            self.radius = self.explode_radius*( (time.time() - self.explode_start)/settings.DEFAULT_EXPLODE_TIME )
+            self.set_screen_radius()
     
     def set_explode_force_mag(self, time):
         self.explode_force_mag = self.explode_energy / time
@@ -119,19 +129,48 @@ class Cannonball(cosmos.Celestial):
                 hit = True
                 tank.active = False
                 if self.sts.debug:
-                    print(f"Tank {tank.name} has been hit!")
+                    self.sts.write_to_log(f"{tank.name} has been hit!")
                     
         return hit
 
-    def display_ball_values(self):
+    def write_ball_values(self):
         """Print properties of cannonball"""
-        print("\n")
-        super().display_values()
+        super().write_values()
+        extra_cannonball_text = []
+        extra_cannonball_text.append(f"ADDITIONAL INFORMATION FOR {self.name}:")        
         if self.active:
-            print("\nThis ball is active.")
+            extra_cannonball_text.append("This cannonball is active.")
         if self.chambered:
-            print("\nThis ball is chambered.")
+            extra_cannonball_text.append("This cannonball is chambered.")
         if self.exploding:
-            print("\nThis ball is exploding!")
+            extra_cannonball_text.append("This cannonball is exploding!")
         if self.armed:
-            print("\nThis ball is armed.")
+            extra_cannonball_text.append("This ball is armed.")
+        self.sts.write_to_log(extra_cannonball_text)
+
+    def choose_flash_color(self):
+        random_flash = random.randint(1, 6)
+        if random_flash == 1:
+            # Cinnabar
+            self.color = (246, 65, 45)
+        elif random_flash == 2:
+            # Mystic Red
+            self.color = (255, 86, 7)
+        elif random_flash == 3:
+            # Vivid Gamboge
+            self.color == (255, 152, 0)
+        elif random_flash == 4:
+            # Fluorescent Orange
+            self.color == (255, 193, 0)
+        elif random_flash == 5:
+            # Vivid Yellow
+            self.color = (255, 236, 25)
+        else:
+            # White
+            self.color = (255, 255, 255)
+            
+    def flash(self):
+        """ Change cannonball color while exploding """
+        if self.exploding:
+            if random.uniform(0, 1) < settings.DEFAULT_FLASH_CHANCE:
+               self.choose_flash_color()

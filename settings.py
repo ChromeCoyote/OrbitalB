@@ -3,6 +3,7 @@ import pygame
 import random
 import math
 import numpy
+import datetime
 
 # real world variables
 EARTH_RADIUS = 6_371    # in kilometers
@@ -13,6 +14,14 @@ LUNA_RADIUS = 1_737.1   # in kilometers
 LUNA_MASS = 7.34767309e22   # in kilograms
 LUNA_DENSITY = 3340     # in kilograms per meter cubed
 LUNA_ORBIT_RAD = 385_000   # in km
+
+CERES_RADIUS = 470      # in kilometers
+CERES_DENSITY = 2612
+
+# C/2014 UN_271 Bernardinelli-Bernstein
+COMET_RADIUS = 69      # in kilometers
+COMET_MASS = 450e15     # in kg
+COMET_DENSITY = 917   # that of ice, just an estimate
 
 GRAV_CONST = 6.674e-20  # universal gravitational constant, cubic km
 
@@ -33,29 +42,24 @@ EARTH_RAD_SCALE = 0.1   # A body with Earth's radius will take up this
 
 # amount of energy lost when there is a collision
 DEFAULT_ENERGY_LOSS = 1
-DEFAULT_CRIT_RADIUS = LUNA_RADIUS / 4      # critical radius under which celestials die
+DEFAULT_CRIT_MASS = LUNA_MASS / 4      # critical radius under which celestials die
 DEFAULT_CRIT_EXPLODE_MASS = LUNA_MASS        # cannonballs blow up the moon!
 # mass of collidiing object has to be this many times more to cause shatter
-DEFAULT_CRIT_MASS = 1        
+DEFAULT_CRIT_MASS_RATIO = 1        
 
 DEFAULT_TANK_SCREENRAD = 3      # default tank screen radius
 DEFAULT_TANK_COLOR = (0,255,0)  # default tank color, lime green?
 DEFAULT_ENEMY_TANK_COLOR = (255, 0, 255)    # enemy tank color, magenta
 DEFAULT_ESCAPE_FRAC = 0.5       # default cannonball speed as fraction
 
-DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
-DEFAULT_WARM_ARROW_COLOR = (255, 255, 0)
-DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)
-HOT_THRESHOLD = 0.9                         # thresholds for arrows
-COLD_THRESHOLD = 0.3
-
 DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
 DEFAULT_SPEED_DIV = 100        
 DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radians
 DEFAULT_FIRING_ANGLE = 0       # initial firing angle in radians
 
-FUSE_THRESHOLD = 50                 # threshold for fuse
-EXPLODE_THRESHOLD = 10              # threshohld for explosion
+DEFAULT_FUSE_TIME = 1               # fuse lasts for 1 second, after which cannonball becomes armed
+DEFAULT_EXPLODE_TIME = 2               # cannonballs explode for this many seconds
+DEFAULT_FLASH_CHANCE = 0.8            # cannonballs flash new color every tenth of a secondn when exploding
 DEFAULT_CANNONBALL_MASS = 1000      # default cannonball mass
 
 # don't select a color every explode tick 
@@ -75,16 +79,23 @@ COLD_THRESHOLD = 0.3
 # Energy release by Czar Bomba in kg*km^2*s^(-2)
 CZAR_BOMBA_ENERGY = 2e11
 
+# frequency of asteroid creation...
+DEFAULT_ASTEROID_CHANCE = 1/120
+
 # AI PARAMETERS
 SIMPLE_SPEED_GUESS_LOWER = 0.8
 SIMPLE_SPEED_GUESS_HIGHER = 0.95
 
 # Cannonballs have as much energy as 1 million Czar Bombs
-DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12
+# DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12
+DEFAULT_EXPLODE_ENERGY = 0
 
 DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 2 # explosion is 1/4 radius of Moon!
 
 DEFAULT_BODY_COLOR = (0, 94, 184)       # ocean color
+DEFAULT_LUNA_COLOR = (254, 252, 215)    # Moon Glow
+# DEFAULT LUNA_COLOR = (201, 201, 201)   # gray
+DEFAULT_COMET_COLOR = (200, 233, 233)   # ice blue
 
 DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255)    # white
@@ -98,7 +109,19 @@ DECREASE_SPEED = pygame.K_KP_MINUS
 MOVE_TANK_CW = pygame.K_RIGHT
 MOVE_TANK_CCW = pygame.K_LEFT
 DETONATE_BALL = pygame.K_DELETE
+EJECT_BALL = pygame.K_BACKSLASH
+EXTI_MENU = pygame.K_ESCAPE
 
+DEFAULT_AI_TOLERANCE = 1
+# How often enemy tank will choose to fire rather than move
+DEFAULT_AI_FIRE_WEIGHT = 0.8
+# How long in seconds that AI tank will wait to make an action to slow it down
+DEFAULT_AI_WAIT_TIME = 0
+
+# Game will keep track of objects that are this far out of screen,
+# i.e. if value is 0.5, objects will be keep in memory as long as they
+# are within 50% the total screen height or width outside the actual screen
+DEFAULT_VIRTUAL_SCREEN = 0.5
 
 def rand_clr():
     """ Gets color of star based on galactic distribution """
@@ -143,9 +166,12 @@ class Settings:
         self.stardensity = DEFAULT_STAR_DENSITY
         self.energy_loss = DEFAULT_ENERGY_LOSS
         self.crit_mass = DEFAULT_CRIT_MASS
-        self.crit_radius = DEFAULT_CRIT_RADIUS
+        self.crit_mass_ratio = DEFAULT_CRIT_MASS_RATIO
         self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
+        self.meteor_shower = False
+        self.asteroid_chance = DEFAULT_ASTEROID_CHANCE
+        
         # declaration of Surface object
         self.screen = pygame.display.set_mode(
             (self.screen_width, self.screen_height) )
@@ -158,7 +184,12 @@ class Settings:
 
         self.screen_dist_scale = self.act_h * self.rad_scale / \
             EARTH_RADIUS
-            
+
+        # Stuff for game log
+        self.now = datetime.datetime.now()
+        self.log_filename = self.now.strftime("%Y-%m-%d-%H%M-%S_OB_game.log") 
+        self.log_text = []
+
     def set_fps(self, fps):
         """ Set FPS """
         self.fps = fps
@@ -225,3 +256,21 @@ class Settings:
     def destroy_screen(self):
         """prevent errors with deepcopy()"""
         del self.screen
+
+    def write_to_log(self, text):
+        self.now = datetime.datetime.now()
+        if isinstance(text, list):
+            self.log_text.append("<<<" + self.now.strftime("%H:%M:%S:%f") + ">>>\n")
+            for line in text:
+                self.log_text.append("* " + line + "\n")
+        else:
+                self.log_text.append("<<<" + self.now.strftime("%H:%M:%S:%f") + ">>>  " + text + "\n")
+
+    def output_log_to_file(self):
+        if len(self.log_text):
+            with open(self.log_filename, 'a') as log_file:
+                if isinstance(self.log_text, list):
+                    for line in self.log_text:
+                        log_file.write(line)
+                else:
+                    log_file.write(line)

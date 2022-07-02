@@ -1,7 +1,7 @@
 # Code for projectile
 
-import pygame, math, random, numpy, time
-import settings, cosmos, cannonball
+import pygame, math, random, numpy, time, os
+import settings, cosmos
 
 def check_tanks(tanks, _settings):
     destroyed_tanks = []
@@ -48,7 +48,6 @@ class Tank (cosmos.Celestial):
         self.radius = 0.1            # 100 m meter radius
         
         self.homeworld = False       # not the homeworld ;)
-        self.gravity = False         # ignore gravity of this object
         self.screen_rad = settings.DEFAULT_TANK_SCREENRAD  
         self.color = settings.DEFAULT_TANK_COLOR
 
@@ -186,7 +185,7 @@ class Tank (cosmos.Celestial):
         chamber_success = False
         
         if not self.chambered_ball:
-            self.balls.append(cannonball.Cannonball(self.sts, self.celestials))
+            self.balls.append(cosmos.Cannonball(self.sts, self.celestials))
             # self.num_balls = len(self.balls)    # set number of balls counted in balls list
             self.total_balls += 1
             self.chambered_ball = True  # set index of currently chambered ball
@@ -240,16 +239,31 @@ class Tank (cosmos.Celestial):
                     if ( time.time() - ball.fuse_start ) > settings.DEFAULT_FUSE_TIME:
                         ball.armed = True
                         ball.color = settings.DEFAULT_ARMED_COLOR
+                if ball.armed and ball.given_away and not ball.celestial_explosion:
+                        if ( time.time() - ball.given_away_start ) > settings.DEFAULT_GIVEN_AWAY_TIME:
+                            ball.explode()
                 if ball.exploding:
                     if ( time.time() - ball.explode_start ) > settings.DEFAULT_EXPLODE_TIME:
                         ball.exploding = False
                         ball.active = False
+                        if self.sts.debug:
+                            self.sts.write_to_log(
+                                f"{ball.name} explosion timer has expired, marked for removal...")
                     else:
                         if ball.stuck_to_celestial:
                             ball.get_surface_pos()
-                        ball.flash()
-                        ball.expand()
+                        if not ball.celestial_explosion:
+                            ball.flash()
+                            ball.expand()
+                        else:
+                            if ( time.time() - ball.frame_timer) > ball.frame_wait:
+                                ball.next_frame()
+                                ball.frame_timer = time.time()
+
                 ball.check_impact(tanks)
+                
+                # if self.sts.debug and ball.celestial_explosion:
+                #    ball.write_ball_values()
             
         for ball in self.balls:
             if not ball.active and not ball.chambered:
@@ -324,6 +338,7 @@ class Tank (cosmos.Celestial):
             for ball in self.balls:
                 if not ball.chambered:
                     ball.given_away = True
+                    ball.given_away_start = time.time()
                     tank.balls.append(ball)
     
     def pick_launch_angle(self):
@@ -532,4 +547,11 @@ class Tank (cosmos.Celestial):
                         self.sts.write_to_log(f"ERROR:  {self.name} attempting to move with a chambered ball!")
                 
                 self.start_wait = time.time()
+
+    def get_snail_pix(self, color, location):
+        snail_path = os.path.normpath("Pix\Snails")
+        if isinstance(color, str):
+            if color.lower() == "green":
+                snail_path = os.path.normpath("Pix\Snails")
+
             

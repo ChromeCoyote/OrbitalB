@@ -1,5 +1,3 @@
-from pickle import TRUE
-from sre_compile import isstring
 import pygame
 import random
 import math
@@ -44,7 +42,7 @@ EARTH_RAD_SCALE = 0.1   # A body with Earth's radius will take up this
 
 # amount of energy lost when there is a collision
 DEFAULT_ENERGY_LOSS = 1
-DEFAULT_CRIT_MASS = LUNA_MASS / 4      # critical radius under which celestials die
+DEFAULT_CRIT_MASS = LUNA_MASS / 16      # critical radius under which celestials die
 DEFAULT_CRIT_EXPLODE_MASS = LUNA_MASS        # cannonballs blow up the moon!
 # mass of collidiing object has to be this many times more to cause shatter
 DEFAULT_CRIT_MASS_RATIO = 1        
@@ -61,7 +59,8 @@ DEFAULT_FIRING_ANGLE = 0       # initial firing angle in radians
 
 DEFAULT_FUSE_TIME = 1               # fuse lasts for 1 second, after which cannonball becomes armed
 DEFAULT_EXPLODE_TIME = 2               # cannonballs explode for this many seconds
-DEFAULT_FLASH_CHANCE = 0.8            # cannonballs flash new color every tenth of a secondn when exploding
+DEFAULT_GIVEN_AWAY_TIME = 10           # how long cannonballs last when shooting tank dies
+DEFAULT_FLASH_CHANCE = 0.8            # cannonballs flash new color when exploding
 DEFAULT_CANNONBALL_MASS = 1000      # default cannonball mass
 
 # don't select a color every explode tick 
@@ -89,8 +88,8 @@ SIMPLE_SPEED_GUESS_LOWER = 0.8
 SIMPLE_SPEED_GUESS_HIGHER = 0.95
 
 # Cannonballs have as much energy as 1 million Czar Bombs
-# DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12
-DEFAULT_EXPLODE_ENERGY = 0
+DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e10
+# DEFAULT_EXPLODE_ENERGY = 0
 
 DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 2 # explosion is 1/4 radius of Moon!
 
@@ -130,18 +129,16 @@ DEFAULT_CHANCE_FOR_FARAWAY_OBJECT = 1/4
 NUM_ZONES = 8
 
 # Number of faraway object categories
-NUM_FARAWAY_OBJECT_CAT = 9
 
-NUM_HOMEWORLD_CAT = 10
-NUM_DESERT = 8
-NUM_FOREST = 14
-NUM_ICE = 4
-NUM_LAVA = 12
-NUM_OCEAN = 8
-NUM_ROCKY = 12
-NUM_TECH = 12
-NUM_TERRAN = 16
-NUM_TUNDRA = 8
+FARAWAY_OBJECT_DIR = "Pix/Faraway_Objects"
+HOMEWORLDS_DIR = "Pix/Homeworlds"
+
+DWARVES_PATH = "Pix/Dwarves"
+MOONS_PATH = "Pix/Moons"
+
+SNAILS_PATH = "Pix/Snails"
+
+EXPLOSIONS_PATH = "Pix/Explosions"
 
 def rand_clr():
     """ Gets color of star based on galactic distribution """
@@ -172,9 +169,30 @@ def choose_random_file(path):
         files_in_dir = os.listdir(path)
         if files_in_dir:
             random_file = random.choice(files_in_dir)
-            random_file = os.path.normpath(old_path + '/' + random_file)
+            random_file = os.path.join(old_path, random_file)
+            random_file = os.path.normpath(random_file)
+            if not os.path.isfile(random_file):
+                random_file = False
         
     return random_file
+
+def choose_random_directory(path):
+    random_dir = False
+    # print(f"\nOriginal path is:  {path}")
+    path = os.path.normpath(path)
+    # print(f"\nNew path is:  {path}")
+    if os.path.exists(path):
+        dirs = os.listdir(path)
+        if dirs:
+            random_dir = random.choice(dirs)
+            random_dir = os.path.join(path, random_dir)
+            random_dir = os.path.normpath(random_dir)
+            if not os.path.isdir(random_dir):
+                random_dir = False
+                # print(f"\nERROR in settings.choose_random_directory:  {random_dir} is not a directory...")
+
+    # print(f"Random directory chose is {random_dir}...")    
+    return random_dir
 
 def random_pix_transform(pix):
     flip_x = random.getrandbits(1)
@@ -427,112 +445,18 @@ class Settings:
 
         return (X, Y)
 
-    def pull_faraway_pix(self, pix_name):
-        
-        pix_path = False
-        if isinstance(pix_name, str):
-            if pix_name.lower() == "asteroid":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Asteroids")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose asteroid pix!")
-            elif pix_name.lower() == "black_hole":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Black_Holes")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose black hole pix!")
-            elif pix_name.lower() == "comet":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Comets")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose comet pix!")
-            elif pix_name.lower() == "galaxy":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Galaxies")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose galaxy pix!")
-            elif pix_name.lower() == "gas_giant":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Gas_Giants")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose gas giant pix!")
-            elif pix_name.lower() == "nebula":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Nebulae")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose nebula pix!")
-            elif pix_name.lower() == "quasar":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Quasars")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose quasar pix!")
-            elif pix_name.lower() == "sun":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Suns")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose sun pix!")
-            elif pix_name.lower() == "moon":
-                pix_path = choose_random_file("Pix/Faraway_Objects/Moons")
-                if not pix_path and self.debug:
-                    self.write_to_log(f"ERROR:  Can't choose moon pix!")
-            else:
-                if self.debug:
-                    self.write_to_log(f"ERROR:  Pix name {pix_name} not a valid choice.")
-        else:
-            if self.debug:
-                self.write_to_log("ERROR:  Pix name has to be a string for Settings.pull_faraway_pix()")
-        
+    def pick_faraway_pix(self, zone):
+        pix_path = choose_random_directory(FARAWAY_OBJECT_DIR)
+        pix_path = choose_random_file(pix_path)
         if pix_path:
             self.faraway_pixies.append(pygame.image.load_extended(pix_path))
             self.faraway_pixies[-1].convert_alpha()
-            # random_pix_transform(self.faraway_pixies[-1])
+            self.pix_xy.append(self.pick_spot_in_zone(zone))
             if self.debug:
                 self.write_to_log(f"Image at {pix_path} choosen for background...")
-
-        return pix_path
-
-    def pick_faraway_object(self, zone):
-        dice_roll = random.randint(1, NUM_FARAWAY_OBJECT_CAT)
-        if dice_roll == 1:
-            if self.pull_faraway_pix("asteroid"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling asteroid at random in Settings.pick_faraway_object()")
-        elif dice_roll == 2:
-            if self.pull_faraway_pix("black_hole"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling black hole at random in Settings.pick_faraway_object()")
-        elif dice_roll == 3:
-            if self.pull_faraway_pix("comet"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling comet at random in Settings.pick_faraway_object()")
-        elif dice_roll == 4:
-            if self.pull_faraway_pix("galaxy"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling galaxy at random in Settings.pick_faraway_object()")
-        elif dice_roll == 5:
-            if self.pull_faraway_pix("gas_giant"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling gas giant at random in Settings.pick_faraway_object()")
-        elif dice_roll == 6:
-            if self.pull_faraway_pix("nebula"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling nebula at random in Settings.pick_faraway_object()")
-        elif dice_roll == 7:
-            if self.pull_faraway_pix("quasar"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling quasar at random in Settings.pick_faraway_object()")
-        elif dice_roll == 8:
-            if self.pull_faraway_pix("sun"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling sun at random in Settings.pick_faraway_object()")
-        elif dice_roll == 8:
-            if self.pull_faraway_pix("moon"):
-                self.pix_xy.append(self.pick_spot_in_zone(zone))
-            elif self.debug:
-                self.write_to_log("ERROR pulling moon at random in Settings.pick_faraway_object()")
         elif self.debug:
-            self.write_to_log("Unspecified ERROR in Settings.pick_faraway_object.()")
-    
+            self.write_to_log(f"Can't find faraway image ax {pix_path}!")
+        
     def set_starfield(self):
         """ set starfield of random stars with random colors """
         self.starfield_clr = []
@@ -545,7 +469,7 @@ class Settings:
 
         for zone in range(1, (NUM_ZONES+1)):
             if random.uniform(0, 1) < DEFAULT_CHANCE_FOR_FARAWAY_OBJECT:
-                self.pick_faraway_object(zone)
+                self.pick_faraway_pix(zone)
         
     def draw_stars(self):
         """ Draw stars on current background """
@@ -554,7 +478,7 @@ class Settings:
                 self.starfield_clr[ind])
 
         if self.faraway_pixies:
-            for pixie in range( 0, len(self.faraway_pixies) ):
+            for pixie in range(len(self.faraway_pixies) ):
                 self.screen.blit(self.faraway_pixies[pixie], self.pix_xy[pixie])
 
     def restore_screen(self):

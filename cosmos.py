@@ -1,15 +1,13 @@
 # Data and functions for the world and moon (mass, radius, etc.)
 
 # from locale import normalize
-from json import load
 import math
-from turtle import width
 import settings
 import pygame
 import numpy
 import random
 import os
-import copy
+import time
 
 def rotate_vector(r, ang):
     cosang = math.cos(ang)
@@ -47,8 +45,45 @@ def bounce_v(m1, m2, x1, x2, v1, v2):
 
     return (vel1, vel2)
 
-def break_celestial(broke_body, celestials, break_plane):
+def add_celestial_explosion(_celestial, _tanks):
+    _tanks[0].balls.append(Cannonball(_tanks[0].sts, _tanks[0].celestials))
+    _tanks[0].balls[-1].celestial_explosion = True
+    _tanks[0].balls[-1].name = f"{_celestial.name}'s Explosion-{random.randint(1,10000)}"
+    _tanks[0].balls[-1].vx = _celestial.vx
+    _tanks[0].balls[-1].vy = _celestial.vy
+    _tanks[0].balls[-1].ax = _celestial.ax
+    _tanks[0].balls[-1].ay = _celestial.ay
+    _tanks[0].balls[-1].x = _celestial.x
+    _tanks[0].balls[-1].y = _celestial.y
+    _tanks[0].balls[-1].get_screenxy()
+    _tanks[0].balls[-1].active = True
+    _tanks[0].balls[-1].exploding = True
+    _tanks[0].balls[-1].given_away = True
+    _tanks[0].balls[-1].radius = _celestial.radius
+    _tanks[0].balls[-1].set_screen_radius()
+    _tanks[0].balls[-1].explode_radius = _celestial.radius
+    _tanks[0].balls[-1].pix_dir = settings.choose_random_directory(settings.EXPLOSIONS_PATH)
+    _tanks[0].balls[-1].pix_path = os.listdir(_tanks[0].balls[-1].pix_dir)
+
+    if _tanks[0].balls[-1].pix_path:
+        if _tanks[0].sts.debug:
+            _tanks[0].sts.write_to_log(f"Files found for frames for {_tanks[0].balls[-1].name}...")
+        _tanks[0].balls[-1].load_frames()
+    else:
+        _tanks[0].balls[-1].pix_frames = False
+        if _tanks[0].sts.debug:
+            _tanks[0].sts.write_to_log(
+                    f"ERROR:  Explosion pix files not found in {_tanks[0].balls[-1].pix_dir} for {_tanks[0].balls[-1].name}!")
+
+    _tanks[0].balls[-1].explode_start = time.time()
+    _tanks[0].balls[-1].frame_timer = time.time()
+
+    if _tanks[0].sts.debug:
+        _tanks[0].balls[-1].write_ball_values()
+
+def break_celestial(broke_body, celestials, _tanks, break_plane):
     if broke_body.mass >= broke_body.sts.crit_mass:
+        # add_celestial_explosion(broke_body, _tanks)
         broke_body.radius /= 2
         broke_body.get_mass()
         broke_body.set_screen_radius()
@@ -110,7 +145,7 @@ def check_celestials(celestials):
             celestials.remove(celestial)
             if celestials[0].sts.debug:
                 celestials[0].sts.write_to_log(f"Successfully destroyed celestial!")    
-                    
+
 class Celestial:
     """ Class to hold data & functions for worlds & moons """
 
@@ -125,8 +160,7 @@ class Celestial:
 
         # state of the body
         self.active = True               # starts out alive
-        self.gravity = True             # by default, exerts gravity
-
+       
         self.x = 0                      # math x coordinate in km
         self.y = 0                      # math y coordinate in km
         self.vx = 0                     # x component of velocity in km/s
@@ -148,6 +182,11 @@ class Celestial:
         # Storage for sprite/graphic if there is one
         self.pix = False
         self.pix_path = False
+        self.pix_dir = False
+        self.pix_frames = False
+        self.pix_frame = 0      # current frame in animation in pix_frames
+        self.frame_wait = 1 / self.sts.fps  # default time to wait to change frames
+        self.frame_timer = 0
         # self.pix_rings = False
 
         # gets current resolution values for current windows.
@@ -172,7 +211,8 @@ class Celestial:
     def get_mass(self):
         """ Sets mass of body based on radius and density """
         vol = (4/3)*math.pi*(self.radius*1000)**3      # in cubic meters
-        return (self.density * vol)
+        self.mass = self.density * vol
+        return self.mass
 
     def set_xy(self, x, y):
         """Set x and y coordinates for the body"""
@@ -264,27 +304,42 @@ class Celestial:
             text2write.append("This is the homeworld.")
         else:
             text2write.append("This is not the homeworld.")
-            text2write.append(f"The celestial boyd's density is {self.density} kg/m^3.")
-            text2write.append(f"The celestial body's mass is {self.mass} kg.")
-            text2write.append(f"The Earth's mass is {settings.EARTH_MASS} kg.")
-            text2write.append(f"The celestial body's radius is {self.radius} km.")
-            text2write.append(f"The celestial body's coordinates are ({self.x}, {self.y}).")
-            text2write.append(f"The celestial body's velocity is ({self.vx}, {self.vy}).")
-            text2write.append(f"The celestial body's speed is {self.get_speed()} km/s.")
-            text2write.append(f"The celestial body's acceleration is ({self.ax}, {self.ay}).")         
-            text2write.append(
-                f"The celestial body's screen x and y coordinates are (s{self.screen_x}, {self.screen_y}).")
-            text2write.append(f"The celestial body's screen radius is {self.screen_rad}.")
-        
+        text2write.append(f"The celestial boyd's density is {self.density} kg/m^3.")
+        text2write.append(f"The celestial body's mass is {self.mass} kg.")
+        text2write.append(f"The Earth's mass is {settings.EARTH_MASS} kg.")
+        text2write.append(f"The celestial body's radius is {self.radius} km.")
+        text2write.append(f"The celestial body's coordinates are ({self.x}, {self.y}).")
+        text2write.append(f"The celestial body's velocity is ({self.vx}, {self.vy}).")
+        text2write.append(f"The celestial body's speed is {self.get_speed()} km/s.")
+        text2write.append(f"The celestial body's acceleration is ({self.ax}, {self.ay}).")         
+        text2write.append(
+            f"The celestial body's screen x and y coordinates are ({self.screen_x}, {self.screen_y}).")
+        text2write.append(f"The celestial body's screen radius is {self.screen_rad}.")
+        if self.pix and not isinstance(self.pix_path, list):
+            text2write.append(f"The celestial is using a pix found at {self.pix_path}.")
+        elif self.pix and isinstance(self.pix_path, list):
+            text2write.append(f"The celestial is using frames found at {self.pix_dir}.")
+            for path in self.pix_path:
+                text2write.append(f"The celestial has a frame at {path}.")
+            text2write.append(f"The celestial is currently using a frame at {self.pix_path[self.pix_frame]}.")
+        else:
+            text2write.append("The celestial is using a body circle.")
+       
         self.sts.write_to_log(text2write)
 
     def get_accel(self, celestial):
         """ Calculate acceleration from other celestial body"""
-        a_mag = settings.GRAV_CONST * celestial.mass / \
-            ((self.get_dist(celestial.x, celestial.y))**2)
-        (x, y) = self.get_unit(celestial.x, celestial.y)
-        x *= a_mag
-        y *= a_mag
+        dist = ( self.get_dist(celestial.x, celestial.y) )**2 
+        if dist:
+            a_mag = settings.GRAV_CONST * celestial.mass / dist
+            (x, y) = self.get_unit(celestial.x, celestial.y)
+            x *= a_mag
+            y *= a_mag
+        else:
+            (x, y) = (0, 0)
+            if self.sts.debug:
+                self.sts.write_to_log(
+                    f"ERROR:  Distance from {self.name} to {celestial.name} calculated to be zero.")
         return (x,y)
 
     def set_accel(self, celestials):
@@ -353,8 +408,9 @@ class Celestial:
         celestial.vx *= math.sqrt(self.sts.energy_loss)
         celestial.vy *= math.sqrt(self.sts.energy_loss)
 
-    def break_self(self, celestials, break_plane):
+    def break_self(self, celestials, _tanks, break_plane):
         if self.mass >= self.sts.crit_mass:                       
+            # add_celestial_explosion(self, _tanks)
             self.radius /= 2
             self.get_mass()
             self.set_screen_radius()
@@ -409,16 +465,18 @@ class Celestial:
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} has marked itself for destruction...")
 
-    def shatter(self, celestials):
+    def shatter(self, celestials, _tanks):
         """ Check for collision, break apart and bounce if so """
         for celestial in celestials[:]:
             if celestial.name != self.name and self.check_hit(celestial):
                     if self.mass > (celestial.mass * self.sts.crit_mass_ratio) and not celestial.homeworld:
+                        add_celestial_explosion(celestial, _tanks)
                         self.bounce(celestial)
-                        break_celestial(celestial, celestials, celestial.get_unit(self.x, self.y))
+                        break_celestial(celestial, celestials, _tanks, celestial.get_unit(self.x, self.y))
                     elif (self.mass * self.sts.crit_mass_ratio) < celestial.mass and not self.homeworld:
+                        add_celestial_explosion(self, _tanks)
                         self.bounce(celestial)
-                        self.break_self(celestials, self.get_unit(celestial.x,  celestial.y))
+                        self.break_self(celestials, _tanks, self.get_unit(celestial.x,  celestial.y))
                     # fix overlap if any
                     self.fix_overlap(celestial)
                                                                
@@ -458,8 +516,13 @@ class Celestial:
         self.get_screenxy()
 
     def load_pix(self, path_to_pix):
-        self.pix_path = os.path.normpath(path_to_pix)
-        load_success = os.path.exists(self.pix_path)
+        if isinstance(path_to_pix, str):
+            self.pix_path = os.path.normpath(path_to_pix)
+            load_success = os.path.exists(self.pix_path)
+        else:
+            load_success = False
+            if self.sts.debug:
+                self.sts.write_to_log(f"ERROR using load_pix() for {self.name}  Invalid path format (is it a string?)")
         if load_success:
             self.pix = pygame.image.load_extended(self.pix_path)
             self.pix.convert_alpha()
@@ -489,129 +552,25 @@ class Celestial:
     def scale_pix_to_body_circle(self):
         if self.pix:
             self.pix = pygame.transform.scale(self.pix, (2*self.screen_rad, 2*self.screen_rad))
+            # self.pix = pygame.transform.smoothscale(self.pix, (2*self.screen_rad, 2*self.screen_rad))
     
     # def scale_pix_rings(self):
     #     if self.pix_rings:
     #        self.pix_rings = pygame.transform.scale(self.pix_rings, (2.6*self.screen_rad, 2.6*self.screen_rad))
 
-    def pull_homeworld_pix(self, pix_name):
-        
-        if isinstance(pix_name, str) and self.homeworld:
-            if pix_name.lower() == "desert":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Desert")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose desert pix!")
-            elif pix_name.lower() == "forest":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Forest")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose forest pix!")
-            elif pix_name.lower() == "ice":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Ice")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose ice pix!")
-            elif pix_name.lower() == "lava":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Lava")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose lava pix!")
-            elif pix_name.lower() == "ocean":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Ocean")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose ocean pix!")
-            elif pix_name.lower() == "rocky":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Rocky")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose rocky pix!")
-            elif pix_name.lower() == "tech":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Tech")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose tech pix!")
-            elif pix_name.lower() == "Terran":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Terran")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose terran pix!")
-            elif pix_name.lower() == "Tundra":
-                self.pix_path = settings.choose_random_file("Pix/Homeworlds/Tundra")
-                if not self.pix_path and self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Can't choose tundra pix!")
-            else:
-                if self.sts.debug:
-                    self.sts.write_to_log(f"ERROR:  Pix name {pix_name} not a valid choice.")
-        else:
-            if self.sts.debug:
-                self.sts.write_to_log("ERROR:  Pix name has to be a string for Cosmos.pull_homeworld_pix()")
-            if self.sts.debug and not self.homeworld:
-                self.sts.write_to_log(f"ERROR:  {self.name} is not the homeworld, can't pull homeworld pix!")
-        
-        if self.pix_path:
-                if self.load_pix(self.pix_path):
-                    if self.sts.debug:
-                        self.sts.write_to_log(f"Image at {self.pix_path} choosen by Cosmos.pull_homeworld_pix for {self.name}...")
-                elif self.sts.debug:
-                        self.sts.write_to_log(
-                            f"Unspecified ERROR in Cosmos.pull_homeworld_pix() for {self.name}, error returned by Cosmos.load_pix()")
-
     def pick_homeworld_pix(self):
-        dice_roll = random.randint(1, settings.NUM_HOMEWORLD_CAT)
-        # desert
-        if dice_roll == 1:
-            self.pull_homeworld_pix("desert")
-            if self.pix_path:
-                self.sts.write_to_log(f"Desert homeworld choosen...")
-                self.name = "Desert Homeworld"
-        # Forest
-        elif dice_roll == 2:
-            self.pull_homeworld_pix("forest")
-            if self.pix_path:
-                self.sts.write_to_log(f"Forest homeworld choosen...")
-                self.name = "Forest Homeworld"
-        # Ice
-        elif dice_roll == 3:
-            self.pull_homeworld_pix("ice")
-            if self.pix_path:
-                self.sts.write_to_log(f"Ice homeworld choosen...")
-                self.name = "Ice Homeworld"
-        # Lava
-        elif dice_roll == 4:
-            self.pull_homeworld_pix("lava")
-            if self.pix_path:
-                self.sts.write_to_log(f"Lava homeworld choosen...")
-                self.name = "Volcanic Homeworld"
-        # Ocean
-        elif dice_roll == 5:
-            self.pull_homeworld_pix("ocean")
-            if self.pix_path:
-                self.sts.write_to_log(f"Ocean homeworld choosen...")
-                self.name = "Ocean Homeworld"
-        # Rocky
-        elif dice_roll == 6:
-            self.pull_homeworld_pix("rocky")
-            if self.pix_path:
-                self.sts.write_to_log(f"Rocky homeworld choosen...")
-                self.name = "Rocky Homeworld"
-        # Tech
-        elif dice_roll == 7:
-            self.pull_homeworld_pix("tech")
-            if self.pix_path:
-                self.sts.write_to_log(f"Tech homeworld choosen...")
-                self.name = "Tech Homeworld"
-        # Terran
-        elif dice_roll == 8:
-            self.pull_homeworld_pix("terran")
-            if self.pix_path:
-                self.sts.write_to_log(f"Terran homeworld choosen...")
-                self.name = "Terran Homeworld"
-        # Tundra
-        elif dice_roll == 9:
-            self.pull_homeworld_pix("tundra")
-            if self.pix_path:
-                self.sts.write_to_log(f"Tundra homeworld choosen...")
-                self.name = "Tundra Homeworld"
+        self.pix_path = settings.choose_random_directory(settings.HOMEWORLDS_DIR)
+        self.pix_path = settings.choose_random_file(self.pix_path)
+        if self.pix_path:
+            self.load_pix(self.pix_path)
+            if self.sts.debug:
+                self.sts.write_to_log(f"Image at {self.pix_path} chosen as homeworld pix for {self.name}'s...")
         elif self.sts.debug:
-            self.sts.write_to_log("Unspecified ERROR in Cosmos.pick_homeworld_pix.()")
-
+            self.sts.write_to_log(f"Can't find homeworld image ax {self.pix_path}!")
+        
     def pick_moon_pix(self):
         if not self.homeworld:
-            self.pix_path = settings.choose_random_file("Pix/Moons")
+            self.pix_path = settings.choose_random_file(settings.MOONS_PATH)
             if self.pix_path:
                 self.load_pix(self.pix_path)
             elif self.sts.debug:
@@ -619,8 +578,239 @@ class Celestial:
 
     def pick_dwarf_pix(self):
         if not self.homeworld:
-            self.pix_path = settings.choose_random_file("Pix/Dwarves")
+            self.pix_path = settings.choose_random_file(settings.DWARVES_PATH)
             if self.pix_path:
                 self.load_pix(self.pix_path)
             elif self.sts.debug:
                 self.sts.write_to_log(f"ERROR loading dwarf pix from {self.pix_path} for {self.name}...")
+
+    def fix_frames_path(self):
+        if isinstance(self.pix_path, list) and self.pix_dir:
+            for frame_path in self.pix_path:
+                frame_path = os.path.join(self.pix_dir, frame_path)
+                frame_path = os.path.normpath(frame_path)
+                if self.sts.debug:
+                    print(f"\nAdding {frame_path} to {self.name}'s frame paths...")
+                    self.sts.write_to_log(f"Adding {frame_path} to {self.name}'s frame paths...")
+        elif self.sts.debug:
+            self.sts.write_to_log(
+                f"ERROR in Cosmos.fix_frames_path:  No list of pix frames defined for {self.name}.")
+
+    def next_frame(self):
+        if isinstance(self.pix_frames, list):
+            self.pix = self.pix_frames[self.pix_frame]
+            self.scale_pix_to_body_circle()
+            if self.pix_frame < ( len(self.pix_frames) - 1 ):
+                self.pix_frame += 1
+            else:
+                self.pix_frame = 0
+        elif self.sts.debug:
+            self.sts.write_to_log(
+                f"ERROR in Cosmos.next_frame:  No list of pix frames defined for {self.name}.")
+    
+    def load_frame(self, frame):
+        if isinstance(self.pix_frames, list) and isinstance(frame, int):
+            self.pix_frame = frame
+            self.scale_pix_to_body_circle()
+            if self.pix_frame > ( len(self.pix_frames) - 1):
+                self.pix_frame = 0
+            self.pix = self.pix_frames[self.pix_frame]
+        elif self.sts.debug:
+            self.sts.write_to_log(
+                f"ERROR in Cosmos.load_frame:  No list of pix frames defined for {self.name}, or invalid frame.")
+    
+    def load_frames(self):
+        self.pix_frames = []
+        # self.fix_frames_path()
+        if isinstance(self.pix_path, list):
+            for frame in self.pix_path:
+                frame_file = os.path.join(self.pix_dir, frame)
+                frame_file = os.path.normpath(frame_file)
+                if os.path.exists(frame_file):
+                    self.pix_frames.append(pygame.image.load_extended(frame_file))
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"Pix at {frame_file} loaded as frame for {self.name}...")
+                elif self.sts.debug:
+                    self.sts.write_to_log(f"ERROR for {self.name}:  {frame_file} not found!")
+            self.load_frame(0)
+        elif self.sts.debug:
+            self.sts.write_to_log(f"ERROR:  No list of pix frames defined for {self.name}.")
+
+# ********************************************************************************************************** 
+# *************************** CANNONBALL!!! ****************************************************************
+# **********************************************************************************************************
+
+class Cannonball(Celestial):
+    """ Class for projectile (or projectiles), child of Celestial """
+
+    def __init__(self, sts, celestials):
+        """ Initialize variables for projectile """
+        super().__init__(sts)
+
+        self.name = 'Cannonball'
+
+        self.radius = 0.001             # 1 m meter radius
+        self.screen_rad = settings.DEFAULT_BALL_SCREEN_RAD
+
+        self.homeworld = False       # not the homeworld ;)
+        self.explode_radius = settings.DEFAULT_EXPLODE_RADIUS
+        self.color = settings.DEFAULT_BALL_COLOR
+
+        # find and setup stats for homeworld
+        self.homeworld = False
+        for body in celestials:
+            if body.homeworld == True:
+                self.homeworld = body
+   
+        self.celestials = celestials
+        
+        self.active = False     # starts out not launched (dead)
+        self.chambered = False
+        self.exploding = False
+        self.armed = False
+        self.given_away = False
+        # Use to keep track of Cannonball objects of animated celestial explosions
+        self.celestial_explosion = False
+
+        # keep track of fuse, explosion timers
+        self.fuse_start = 0
+        self.explode_start = 0
+        self.given_away_start = 0
+        
+        self.mass = settings.DEFAULT_CANNONBALL_MASS
+
+        self.speed = 0
+        self.vx = 0
+        self.vy = 0
+
+        self.stuck_to_celestial = False
+        self.pos_angle = 0
+
+        # set by another class/function
+        self.explode_energy = settings.DEFAULT_EXPLODE_ENERGY
+        # self.explode_energy = 0
+        self.explode_force_mag = self.explode_energy / self.explode_radius
+                                  
+    def update_celestials(self, celestials):
+        """ update homewold values """
+        self.celestials = celestials
+        for body in celestials:
+            if body.homeworld == True:
+                self.homeworld = body
+    
+    def find_speed(self):
+        self.speed = math.sqrt(self.vx**2 + self.vy**2)
+            
+    def explode(self):
+        # self.active = False
+        self.armed = False
+        self.exploding = True
+        # self.radius = self.explode_radius
+        # self.screen_rad = self.explode_radius * self.sts.screen_dist_scale
+        # self.set_screen_radius()
+        self.explode_start = time.time()
+    
+    def expand(self):
+        if self.exploding:
+            self.radius = self.explode_radius*( (time.time() - self.explode_start)/settings.DEFAULT_EXPLODE_TIME )
+            self.set_screen_radius()
+    
+    def set_explode_force_mag(self, time):
+        self.explode_force_mag = self.explode_energy / time
+
+    def get_surface_pos(self):
+        """ set launch point based on position angle (pos_angle) """
+        self.x = self.stuck_to_celestial.radius * math.cos(self.pos_angle) \
+            + self.stuck_to_celestial.x
+        self.y = self.stuck_to_celestial.radius * math.sin(self.pos_angle) \
+            + self.stuck_to_celestial.y
+        super().get_screenxy()
+
+    def stick_to_celestial(self, celestial):
+        if not self.stuck_to_celestial:
+            self.stuck_to_celestial = celestial
+            (stuck_x, stuck_y) = numpy.subtract(
+                [self.x, self.y], [self.stuck_to_celestial.x, self.stuck_to_celestial.y])
+            self.pos_angle = math.atan2(stuck_y, stuck_x)
+    
+    def check_impact(self, _tanks):
+        hit = False
+       
+        for celestial in self.celestials:
+            if celestial.name != self.name and super().check_hit(celestial):
+                hit = True
+                # self.homeworld = celestial      # changes homeworld for explosion
+                if self.armed:
+                    self.explode()
+                elif self.exploding:
+                    if not self.stuck_to_celestial:
+                        self.stick_to_celestial(celestial)
+                        if not self.celestial_explosion:
+                            (ax, ay) = super().get_unit(celestial.x, celestial.y)
+                            ax *= self.explode_force_mag
+                            ay *= self.explode_force_mag
+                            celestial.vx += ax * self.sts.tres
+                            celestial.vy += ay * self.sts.tres
+                            if celestial.mass < self.sts.crit_explode_mass:
+                                add_celestial_explosion(celestial, _tanks)
+                                celestial.break_self(self.celestials, _tanks, celestial.get_unit(self.x, self.y))
+                                self.stuck_to_celestial = False
+                                # self.exploding = False
+                                # self.active = False
+                        elif not celestial.homeworld:
+                            self.stuck_to_celestial = False
+                else:
+                    self.active = False
+                
+        for tank in _tanks:
+            if self.exploding and super().check_hit(tank):
+                hit = True
+                tank.active = False
+                if self.sts.debug:
+                    self.sts.write_to_log(f"{tank.name} has been hit by {self.name}!")
+                    
+        return hit
+
+    def write_ball_values(self):
+        """Print properties of cannonball"""
+        super().write_values()
+        extra_cannonball_text = []
+        extra_cannonball_text.append(f"ADDITIONAL INFORMATION FOR {self.name}:")        
+        if self.active:
+            extra_cannonball_text.append("This cannonball is active.")
+        if self.chambered:
+            extra_cannonball_text.append("This cannonball is chambered.")
+        if self.exploding:
+            extra_cannonball_text.append("This cannonball is exploding!")
+        if self.armed:
+            extra_cannonball_text.append("This ball is armed.")
+        if self.celestial_explosion:
+            extra_cannonball_text.append("This cannonball is a celestial explosion.")
+        self.sts.write_to_log(extra_cannonball_text)
+
+    def choose_flash_color(self):
+        random_flash = random.randint(1, 6)
+        if random_flash == 1:
+            # Cinnabar
+            self.color = (246, 65, 45)
+        elif random_flash == 2:
+            # Mystic Red
+            self.color = (255, 86, 7)
+        elif random_flash == 3:
+            # Vivid Gamboge
+            self.color == (255, 152, 0)
+        elif random_flash == 4:
+            # Fluorescent Orange
+            self.color == (255, 193, 0)
+        elif random_flash == 5:
+            # Vivid Yellow
+            self.color = (255, 236, 25)
+        else:
+            # White
+            self.color = (255, 255, 255)
+            
+    def flash(self):
+        """ Change cannonball color while exploding """
+        if self.exploding:
+            if random.uniform(0, 1) < settings.DEFAULT_FLASH_CHANCE:
+               self.choose_flash_color()

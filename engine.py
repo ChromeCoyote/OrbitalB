@@ -3,7 +3,7 @@
 
 import math, pygame, random, sys
 import numpy
-import settings, cosmos, tank, cannonball
+import settings, cosmos, tank
 
 class Engine:
     """ Main game engine """
@@ -175,13 +175,15 @@ class Engine:
                             tank.eject_ball()
 
     def draw_objects(self):
-        for tank in self.tanks:
-            tank.draw_bodycircle()
-            if tank.chambered_ball:
-                tank.draw_launch_v()
-            for ball in tank.balls:
-                if ball.active or ball.exploding:
-                    ball.draw_bodycircle()
+        if self.tanks:
+            for tank in self.tanks:
+                tank.draw_bodycircle()
+                if tank.chambered_ball:
+                    tank.draw_launch_v()
+                if tank.balls:
+                    for ball in tank.balls:
+                        if ball.active or ball.exploding:
+                            ball.draw_bodycircle()
         
         for body in self.celestials:
             body.draw_bodycircle()

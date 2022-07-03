@@ -162,30 +162,30 @@ class Engine:
                             tank.launch_speed -= tank.speed_step
                             tank.fix_launch_velocity()
                         elif event.key == tank.move_CCW_key and not tank.chambered_ball:
-                            tank.pos_angle += tank.radian_step
-                            tank.get_surface_pos()
-                            tank.reset_default_launch()
+                            tank.move_CCW()
                         elif event.key == tank.move_CW_key and not tank.chambered_ball:
-                            tank.pos_angle -= tank.radian_step
-                            tank.get_surface_pos()
-                            tank.reset_default_launch()
+                            tank.move_CW()
                         elif event.key == tank.detonate_ball_key:
                             tank.detonate_ball()
                         elif event.key == tank.eject_ball_key:
                             tank.eject_ball()
+        for tank in self.tanks:
+            if not tank.player_tank:
+                tank.make_choices(self.tanks)
 
     def draw_objects(self):
         if self.tanks:
             for tank in self.tanks:
-                tank.draw_bodycircle()
                 if tank.chambered_ball:
                     tank.draw_launch_v()
+                tank.draw_bodycircle()
                 if tank.balls:
                     for ball in tank.balls:
                         if ball.active or ball.exploding:
                             ball.draw_bodycircle()
         
         for body in self.celestials:
+            # if not body.homeworld:
             body.draw_bodycircle()
 
     def display_game_message(self, message, location, font_color):

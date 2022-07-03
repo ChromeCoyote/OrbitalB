@@ -140,6 +140,9 @@ SNAILS_PATH = "Pix/Snails"
 
 EXPLOSIONS_PATH = "Pix/Explosions"
 
+DEFAULT_SNAIL_SCREEN_RADIUS = 20
+DEFAULT_SNAIL_DISPLACEMENT_FACTOR = 0.2
+
 def rand_clr():
     """ Gets color of star based on galactic distribution """
     clr = (255, 255, 255)
@@ -231,7 +234,7 @@ class Settings:
         self.crit_mass_ratio = DEFAULT_CRIT_MASS_RATIO
         self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
-        self.meteor_shower = True
+        self.meteor_shower = False
         self.asteroid_chance = DEFAULT_ASTEROID_CHANCE
         
         # declaration of Surface object
@@ -446,6 +449,7 @@ class Settings:
         return (X, Y)
 
     def pick_faraway_pix(self, zone):
+        """ Randomly select a sprite for background from defined directories.  """
         pix_path = choose_random_directory(FARAWAY_OBJECT_DIR)
         pix_path = choose_random_file(pix_path)
         if pix_path:
@@ -493,6 +497,7 @@ class Settings:
         del self.screen
 
     def write_to_log(self, text):
+        """ Add list or string of text to memory to be written later to file. """
         self.now = datetime.datetime.now()
         if isinstance(text, list):
             self.log_text.append("<<<" + self.now.strftime("%H:%M:%S:%f") + ">>>\n")
@@ -502,6 +507,7 @@ class Settings:
                 self.log_text.append("<<<" + self.now.strftime("%H:%M:%S:%f") + ">>>  " + text + "\n")
 
     def output_log_to_file(self):
+        """ Write text in memory to file. """
         if len(self.log_text):
             with open(self.log_filename, 'a') as log_file:
                 if isinstance(self.log_text, list):

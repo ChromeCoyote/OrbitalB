@@ -83,6 +83,15 @@ class Tank (cosmos.Celestial):
         self.player_tank = True     # default player tank
         self.winner = False         # not a winner yet!
 
+        self.moving = False
+        self.targeting = False
+        self.dying = False
+
+        self.snail_color = False
+        self.walking_frames = False
+        self.firing_frames = False
+        self.dying_frames = False
+
         self.get_surface_pos()     # initalize x, y posistion
 
         self.chamber_ball_key = settings.CHAMBER_BALL
@@ -100,21 +109,22 @@ class Tank (cosmos.Celestial):
         self.angle_guess = self.launch_angle
         self.speed_guess = self.launch_speed
         self.pos_target = self.pos_angle
-        self.moving = False
-        self.targeting = False
+
         self.target = False
         self.tolerance = settings.DEFAULT_AI_TOLERANCE
-        self.restrict_movement = True
+        self.restrict_movement = False
         self.fire_weight = settings.DEFAULT_AI_FIRE_WEIGHT
         # timer to slow down AI tank
         self.start_wait = 0
 
-        self.mu = 0         # orbital constant
+        self.displacement_factor = settings.DEFAULT_SNAIL_DISPLACEMENT_FACTOR
 
+     
+        # orbital constant
         if self.homeworld:
-            self.mu = -settings.GRAV_CONST*self.homeworld.mass
-
-        # self.ball_force 
+            self.mu = settings.GRAV_CONST*self.homeworld.mass
+        else:
+            self.mu = 0
 
     def fix_launch_velocity(self):
         if self.launch_speed < 0:
@@ -154,7 +164,7 @@ class Tank (cosmos.Celestial):
     def get_surface_pos(self):
         """ set launch point based on position angle (pos_angle) """
         if self.pos_angle < 0:
-            self.pos_angle = math.pi + self.pos_angle
+            self.pos_angle = 2*math.pi + self.pos_angle
         if self.pos_angle > (2*math.pi):
             self.pos_angle = self.pos_angle % (2*math.pi)
         
@@ -185,10 +195,12 @@ class Tank (cosmos.Celestial):
         chamber_success = False
         
         if not self.chambered_ball:
+            self.targeting = True
+            self.moving = False
             self.balls.append(cosmos.Cannonball(self.sts, self.celestials))
             # self.num_balls = len(self.balls)    # set number of balls counted in balls list
             self.total_balls += 1
-            self.chambered_ball = True  # set index of currently chambered ball
+            self.chambered_ball = True
             self.balls[-1].set_xy(self.x, self.y)
             self.fix_launch_velocity()
             [self.balls[-1].vx, self.balls[-1].vy] = self.get_launch_velocity()
@@ -205,6 +217,7 @@ class Tank (cosmos.Celestial):
                     self.balls.remove(ball)
                     # self.num_balls = len(self.balls)
                     self.chambered_ball = False
+                    self.targeting = False
                     
     def fire_ball(self):
         """ Fire chambered cannonball """
@@ -218,6 +231,7 @@ class Tank (cosmos.Celestial):
             [self.balls[-1].x, self.balls[-1].y] = (self.x, self.y)
             self.balls[-1].get_screenxy()
             self.balls[-1].fuse_start = time.time()
+            self.targeting = False
             fire = True
         
         return fire
@@ -323,16 +337,39 @@ class Tank (cosmos.Celestial):
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} has been smushed by {body.name}!")
 
-    def set_enemy_tank(self):
+    def set_player_tank(self):
+        """ Sets tank to an enemy """
+        self.player_tank = True
+        self.name = "Player Tank"
+        self.color = settings.DEFAULT_TANK_COLOR
+        self.snail_color = "green"
+        self.pos_angle = settings.DEFAULT_POSITION_ANGLE
+        self.get_surface_pos()
+        self.reset_default_launch()
+
+        self.load_snail_frames()
+        self.set_frames(self.walking_frames)
+        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
+        self.set_pix()
+    
+    def set_enemy_tank(self, _tanks):
         """ Sets tank to an enemy """
         self.player_tank = False
         self.name = "Enemy Tank"
         self.color = settings.DEFAULT_ENEMY_TANK_COLOR
+        self.snail_color = "red"
         self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
         self.get_surface_pos()
         self.reset_default_launch()
         self.start_wait = time.time()
 
+        self.load_snail_frames()
+        self.set_frames(self.walking_frames)
+        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
+        self.set_pix()
+        
+        self.pick_move_or_shoot(_tanks)
+     
     def give_balls(self, tank):
         if self.balls:
             for ball in self.balls:
@@ -361,14 +398,16 @@ class Tank (cosmos.Celestial):
     def guess_launch_angle(self):
         guessed = False
         if self.target:
-            radical_factor = (self.mu * self.target.pos_angle) / (self.pos_angle**2 * self.launch_speed**2)
-            if radical_factor > 0:
-                self.angle_guess = math.asin(math.sqrt(radical_factor))
-                if self.angle_guess < 0:
-                    self.angle_guess = math.pi + self.angle_guess
-                if self.angle_guess > (2*math.pi):
-                    self.angle_guess = self.angle_guess % (2*math.pi)
-                guessed = True
+            radical_factor = self.mu / (self.homeworld.radius * self.launch_speed**2)
+            if radical_factor >= 0:
+                radical_factor = math.sqrt(radical_factor)
+                if radical_factor <= 1 and radical_factor >= -1:
+                    self.angle_guess = math.asin(radical_factor)
+                    if self.angle_guess < 0:
+                        self.angle_guess = 2*math.pi + self.angle_guess
+                    if self.angle_guess > (2*math.pi):
+                        self.angle_guess = self.angle_guess % (2*math.pi)
+                    guessed = True
             else:
                 self.pick_launch_angle()
         
@@ -378,7 +417,7 @@ class Tank (cosmos.Celestial):
         guessed = False
         if self.target:
             if self.pos_angle and self.launch_angle:
-                radical_factor = (self.mu * self.target.pos_angle) / (self.pos_angle**2 * (math.sin(self.launch_angle)) ** 2)
+                radical_factor = self.mu / (self.homeworld.radius * (math.sin(self.launch_angle)) ** 2)
             else:
                 radical_factor = 0
             if radical_factor > 0:
@@ -397,43 +436,28 @@ class Tank (cosmos.Celestial):
         self.pick_launch_speed()
         if not self.guess_launch_angle():
             if not self.guess_launch_speed():
-                self.targeting = False
-            
-    def check_moving(self):
-        angle_between = self.pos_target - self.pos_angle
-        angle_between = (angle_between + math.pi) % (2*math.pi) - math.pi
-        
-        if abs(angle_between) < self.tolerance*self.radian_step:
-            self.moving = False
-            if self.sts.debug:
-                self.sts.write_to_log(f"{self.name} at target position, not moving...")
-        else:
-            self.moving = True
-            if self.sts.debug:
-                self.sts.write_to_log(f"{self.name} not at target position, moving...")
-        
-        return angle_between
+                if self.sts.debug:
+                    self.sts.write_to_log(
+                        f"{self.name} couldn't find a firing solution, ejecting ball...")
+                self.eject_ball()
+                self.target = False
 
     def check_targeting(self):
         angle_ready = False
         speed_ready = False
 
-        angle_between = self.angle_guess - self.launch_angle
-        angle_between = (angle_between + math.pi) % (2*math.pi) - math.pi
-        
+        angle_between = cosmos.angle_between(self.angle_guess, self.launch_angle)
+    
         if abs(angle_between) < (self.tolerance*self.radian_step):
             angle_ready = True
         if abs(self.launch_speed - self.speed_guess) < (self.tolerance*self.speed_step):
             speed_ready = True
 
-        if angle_ready and speed_ready and self.targeting:
+        if angle_ready and speed_ready:
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} firing solution within tolerances, not adjusting firing solution...")
                 self.sts.write_to_log(f"{self.name} attempting to fire cannonball...")
-            if self.chambered_ball:
-                self.fire_ball()
-                self.targeting = False
-            elif self.sts.debug:
+            if not self.fire_ball() and self.sts.debug:
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
         elif self.targeting:
             if self.sts.debug and not angle_ready:
@@ -441,9 +465,7 @@ class Tank (cosmos.Celestial):
             if self.sts.debug and not speed_ready:
                 if self.sts.debug and not angle_ready:
                     self.sts.write_to_log(f"{self.name} Launch speed not within tolerances, adjusting firing solution...")
-            # if abs(angle_between) < self.tolerance*self.radian_step:
-            #     angle_between = 0
-            if angle_between > 0  and not angle_ready:
+            if angle_between > 0 and not angle_ready:
                     self.launch_angle += self.radian_step
                     if self.sts.debug:
                         self.sts.write_to_log(f"{self.name} adjusted targeting angle one unit CCW...")
@@ -482,64 +504,67 @@ class Tank (cosmos.Celestial):
             if self.sts.debug:
                 self.sts.write_to_log(
                     f"{self.name} chose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
-            
-            self.check_moving()
         
     def move_to_position_target(self):
-        angle_between = self.check_moving()
+        angle_between = cosmos.angle_between(self.pos_target, self.pos_angle)
 
-        if angle_between > 0 and self.moving:
-            self.pos_angle += self.radian_step
-            self.get_surface_pos()
+        if abs(angle_between) < self.tolerance*self.radian_step:
+            self.moving = False
+        elif angle_between > 0:
+            self.move_CCW()
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} moved one unit CCW...")
-            self.reset_default_launch()
-        elif angle_between < 0 and self.moving:
-            self.pos_angle -= self.radian_step
-            self.get_surface_pos()
+        elif angle_between < 0:
+            self.move_CW()
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} moved one unit CW...")
-            self.reset_default_launch()
 
-    def pick_move_or_shoot(self):
-        if random.uniform(0, 1) < self.fire_weight:
-            self.moving = False
-            self.targeting = True
+    def pick_move_or_shoot(self, _tanks):
+        self.pick_target(_tanks)
+        if self.target:
+            if random.uniform(0, 1) < self.fire_weight:
+                self.chamber_ball()
+                self.simple_target()
+                if self.sts.debug:
+                    self.sts.write_to_log(f"{self.name} chose to shoot...")
+            else:
+                self.targeting = False
+                self.pick_position()
+                self.move_to_position_target()
+                if self.sts.debug:
+                    self.sts.write_to_log(f"{self.name} chose to move...")
         else:
-            self.targeting = False
-            self.moving = True
-            self.pick_position()
-        if not self.target:
             self.moving = False
             self.targeting = False
             self.detonate_ball()
             if self.chambered_ball:
                 self.eject_ball()
+            if self.sts.debug:
+                self.sts.write_to_log(
+                    f"No targets for {self.name}, chose to back down...")
 
     def pick_target(self, _tanks):
         """ Pick a target amongst list of tanks """
-        self.target = False
+        potential_targets = []
         for _tank in _tanks:
             if self.name != _tank.name:
-                self.target = _tank
+                potential_targets.append(_tank)
+        if len(potential_targets):
+            self.target = random.choice(potential_targets)
+        else:
+            self.target = False
  
     def make_choices(self, _tanks):
         if not self.player_tank:
             if ( time.time() - self.start_wait) > settings.DEFAULT_AI_WAIT_TIME:
-                self.pick_target(_tanks)
-                if self.moving and not self.chambered_ball:
+                if self.moving:
                     self.move_to_position_target()
-                elif self.targeting and self.target:
-                    if not self.chambered_ball:
-                        self.chamber_ball()
-                        # self.simple_target()
-                        self.quick_target()
-                    if self.chambered_ball:
-                        self.check_targeting()
-                    else:
-                        self.sts.write_to_log(f"ERROR:  {self.name} can't chamber a ball!")
+                elif self.targeting:
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"{self.name} is checking targeting info...")
+                    self.check_targeting()
                 else:
-                    self.pick_move_or_shoot()
+                    self.pick_move_or_shoot(_tanks)
 
                 if self.moving and self.chambered_ball:
                     self.eject_ball()
@@ -547,11 +572,71 @@ class Tank (cosmos.Celestial):
                         self.sts.write_to_log(f"ERROR:  {self.name} attempting to move with a chambered ball!")
                 
                 self.start_wait = time.time()
-
-    def get_snail_pix(self, color, location):
-        snail_path = os.path.normpath("Pix\Snails")
-        if isinstance(color, str):
-            if color.lower() == "green":
-                snail_path = os.path.normpath("Pix\Snails")
-
+    
+    def displace_pix_from_homeworld(self):
+        displace_vector = numpy.subtract(
+            (self.screen_x, self.screen_y), (self.homeworld.screen_x, self.homeworld.screen_y) )
+        displace_vector = numpy.multiply(self.displacement_factor, displace_vector)
+        self.pix_offset_x = int(displace_vector[0])
+        self.pix_offset_y = int(displace_vector[1])
+    
+    def set_pix(self):
+        # self.load_frame(self.pix_frame)
+        self.displace_pix_from_homeworld()
+        # self.get_surface_pos()
+        self.scale_pix_to_body_circle()
+        self.rotate_pix(self.pos_angle - math.pi/2)
+        # self.get_screenxy()
+ 
+    def move_CCW(self):
+        self.pos_angle += self.radian_step
+        self.get_surface_pos()
+        self.reset_default_launch()
+        if not self.moving:
+            self.moving = True
+            if self.snail_color:
+                self.set_frames(self.walking_frames)
+        # self.get_screenxy()
+        if self.pix and isinstance(self.pix_frames, list):
+            self.next_frame()
+            self.scale_pix_to_body_circle()
+            self.rotate_pix(self.pos_angle - math.pi/2)
+            self.displace_pix_from_homeworld()
+     
+    def move_CW(self):
+        self.pos_angle -= self.radian_step
+        self.get_surface_pos()
+        self.reset_default_launch()
+        # self.get_screenxy()
+        if not self.moving:
+            self.moving = True
+            if self.snail_color:
+                self.set_frames(self.walking_frames)
+        if self.pix and isinstance(self.pix_frames, list):
+            self.next_frame()
+            self.scale_pix_to_body_circle()
+            self.flip_pix(True, False)
+            self.rotate_pix( self.pos_angle - math.pi/2 )
+            self.displace_pix_from_homeworld()
             
+    def load_snail_frames(self):
+        if self.snail_color.lower() == "green":
+            path_to_frames = os.path.join(settings.SNAILS_PATH, "Green_Snail")
+            self.walking_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Green_Snail_Walking"))
+            self.firing_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Green_Snail_Firing"))
+            self.dying_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Green_Snail_Dying"))
+        elif self.snail_color.lower() == "red":
+            path_to_frames = os.path.join(settings.SNAILS_PATH, "Red_Snail")
+            self.walking_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Red_Snail_Walking"))
+            self.firing_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Red_Snail_Firing"))
+            self.dying_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Red_Snail_Dying"))
+        elif self.sts.debug:
+            self.sts.write_to_log(
+                f"Invalid color {self.snail_color} used in tank.load_snail_frames() for {self.name}.")
+

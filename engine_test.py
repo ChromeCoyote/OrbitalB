@@ -10,15 +10,9 @@ MainEngine = engine.Engine(MainSettings)
 
 #create homeworld
 MainEngine.create_homeworld()
-# MainEngine.celestials[0].load_pix("Pix\Homeworlds\Terran\\1.png")
-# MainEngine.celestials[0].load_rings("Pix\Homeworlds\Rings\\3.png")
+
 # create moons
 MainEngine.create_moon()
-# MainEngine.celestials[-1].vx = 0
-# MainEngine.celestials[-1].vy = 0
-# MainEngine.celestials[-1].place_on_screen(MainEngine.celestials[-1].width/4, 3*MainEngine.celestials[-1].height/4)
-# MainEngine.celestials[-1].y = 2*MainEngine.celestials[0].radius
-# MainEngine.celestials[-1].x = 0
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
@@ -29,11 +23,12 @@ MainEngine.create_moon()
 
 # Create player tank, index 0
 MainEngine.create_tank()
+MainEngine.tanks[0].set_player_tank()
 
 # enemy tanks
 MainEngine.create_tank()
 # MainEngine.tanks[0].set_enemy_tank()
-MainEngine.tanks[-1].set_enemy_tank()
+MainEngine.tanks[-1].set_enemy_tank(MainEngine.tanks)
 
 # AI testing...
 # MainEngine.tanks[-1].pick_position()
@@ -47,10 +42,6 @@ while not MainEngine.game_over:
     MainEngine.manage_events(pygame.event.get())
 
     MainEngine.meteor_shower()
-
-    for tank in MainEngine.tanks:
-        if not tank.player_tank:
-            tank.make_choices(MainEngine.tanks)
 
     MainEngine.ticktock()
     MainEngine.create_universe()

@@ -8,6 +8,22 @@ def check_tanks(tanks, _settings):
     
     if tanks:
         for tank in tanks[:]:
+            
+            dying_frame = tank.snail_animation()
+            
+            if tank.dying:
+                if not tank.first_death:
+                    tank.first_death = True
+                    tank.animate = True
+                    tank.set_frames(tank.dying_frames)
+                    tank.load_frame(0)
+                    tank.fix_snail_frame()
+                    tank.frame_wait = 1 / 20
+                    tank.frame_timer = time.time()
+                elif dying_frame == ( len(tank.pix_frames) - 1):
+                        tank.dying = False
+                        tank.active = False
+
             if not tank.active:
                 if _settings.debug:
                     _settings.write_to_log(f"{tank.name} being destroyed...")    
@@ -29,17 +45,6 @@ def check_tanks(tanks, _settings):
                 tanks.remove(tank)
                 if _settings.debug:
                     _settings.write_to_log(f"Tank successfully destroyed!")
-            elif tank.animate:
-                if tank.sts.debug:
-                    tank.sts.write_to_log(f"{tank.name} is being animated...")
-                if ( time.time() - tank.frame_timer ) > tank.frame_wait:
-                    tank.next_frame()
-                    tank.fix_snail_frame()
-                    tank.frame_timer = time.time()
-                    if tank.sts.debug:
-                        tank.sts.write_to_log(
-                            [f"{tank.name} has advanced to next frame...", 
-                            f"{tank.pix} selected..."])
         
         if not destroyed_tanks:
             destroyed_tanks = False
@@ -99,11 +104,15 @@ class Tank (cosmos.Celestial):
         self.moving_CW = False
         self.targeting = False
         self.dying = False
+        self.first_death = False
+        self.invulnerable = False
 
         self.snail_color = False
         self.walking_frames = False
         self.firing_frames = False
         self.dying_frames = False
+        self.ball_frames = False
+        self.ball_flash_colors = False
 
         self.get_surface_pos()     # initalize x, y posistion
 
@@ -219,6 +228,13 @@ class Tank (cosmos.Celestial):
             self.balls[-1].chambered = True
             self.balls[-1].name = f"{self.name}'s Cannonball #{self.total_balls}"
 
+            self.balls[-1].color = self.color
+            self.balls[-1].flash_colors = self.ball_flash_colors
+
+            # code to load sprite frames
+            self.balls[-1].set_frames(self.ball_frames)
+            self.balls[-1].pix = False
+
             if self.snail_color:
                 self.set_frames(self.firing_frames)
                 self.load_frame(0)
@@ -231,27 +247,40 @@ class Tank (cosmos.Celestial):
 
         return chamber_success
 
+    def find_chambered_ball(self):
+        
+        found_chambered_ball = False
+        
+        for ball in self.balls:
+            if ball.chambered:
+                found_chambered_ball = ball
+
+        if not found_chambered_ball:
+            self.chambered_ball = False
+    
+        return found_chambered_ball
+                        
     def eject_ball(self):
-        if self.chambered_ball:
-            for ball in self.balls:
-                if ball.chambered:
-                    self.balls.remove(ball)
-                    # self.num_balls = len(self.balls)
-                    self.chambered_ball = False
-                    self.targeting = False
+        found_chambered_ball = self.find_chambered_ball()
+        if found_chambered_ball:
+            self.balls.remove(found_chambered_ball)
+            self.chambered_ball = False
+            self.targeting = False
                     
     def fire_ball(self):
         """ Fire chambered cannonball """
         fire = False
-        
-        if self.chambered_ball:        # if a ball is chambered...
+        found_chambered_ball = self.find_chambered_ball()
+
+        if found_chambered_ball:        # if a ball is chambered...
             self.chambered_ball = False         # set chamber to empty
-            self.balls[-1].chambered = False   # set chambered ball's status to not so
-            self.balls[-1].active = True       # set chambered ball to active
-            [self.balls[-1].vx, self.balls[-1].vy] = self.get_launch_velocity()
-            [self.balls[-1].x, self.balls[-1].y] = (self.x, self.y)
-            self.balls[-1].get_screenxy()
-            self.balls[-1].fuse_start = time.time()
+            found_chambered_ball.chambered = False   # set chambered ball's status to not so
+            found_chambered_ball.active = True       # set chambered ball to active
+            [found_chambered_ball.vx, found_chambered_ball.vy] = self.get_launch_velocity()
+            [found_chambered_ball.x, found_chambered_ball.y] = (self.x, self.y)
+            found_chambered_ball.get_screenxy()
+            found_chambered_ball.fuse_start = time.time()
+            
             self.targeting = False
             fire = True
         
@@ -273,7 +302,13 @@ class Tank (cosmos.Celestial):
                 if not ball.armed and not ball.exploding:
                     if ( time.time() - ball.fuse_start ) > settings.DEFAULT_FUSE_TIME:
                         ball.armed = True
-                        ball.color = settings.DEFAULT_ARMED_COLOR
+                        ball.animate = True
+                        ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD
+                        ball.load_frame(0)
+                        ball.frame_timer = time.time()
+            
+                        # if not ball.animate:
+                        #    ball.color = settings.DEFAULT_ARMED_COLOR
                 if ball.armed and ball.given_away and not ball.celestial_explosion:
                         if ( time.time() - ball.given_away_start ) > settings.DEFAULT_GIVEN_AWAY_TIME:
                             ball.explode()
@@ -289,13 +324,9 @@ class Tank (cosmos.Celestial):
                             ball.get_surface_pos()
                         if not ball.celestial_explosion:
                             ball.expand()
-                        if ball.animate:
-                            if ( time.time() - ball.frame_timer) > ball.frame_wait:
-                                ball.next_frame()
-                                ball.frame_timer = time.time()
-                        else:
                             ball.flash()
 
+                ball.animation()               
                 ball.check_impact(tanks)
                 
                 # if self.sts.debug and ball.celestial_explosion:
@@ -355,45 +386,10 @@ class Tank (cosmos.Celestial):
 
     def check_smush(self, body):
         if not body.homeworld and super().check_hit(body):
-            self.active = False
+            self.dying = True
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} has been smushed by {body.name}!")
 
-    def set_player_tank(self):
-        """ Sets tank to an enemy """
-        self.player_tank = True
-        self.name = "Player Tank"
-        self.color = settings.DEFAULT_TANK_COLOR
-        self.snail_color = "green"
-        self.pos_angle = settings.DEFAULT_POSITION_ANGLE
-        self.get_surface_pos()
-        self.reset_default_launch()
-
-        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
-        self.load_snail_frames()
-        self.set_frames(self.walking_frames)
-        self.load_frame(0)
-        self.fix_snail_frame()
-    
-    def set_enemy_tank(self, _tanks):
-        """ Sets tank to an enemy """
-        self.player_tank = False
-        self.name = "Enemy Tank"
-        self.color = settings.DEFAULT_ENEMY_TANK_COLOR
-        self.snail_color = "red"
-        self.pos_angle = settings.DEFAULT_POSITION_ANGLE + math.pi
-        self.get_surface_pos()
-        self.reset_default_launch()
-        self.start_wait = time.time()
-
-        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
-        self.load_snail_frames()
-        self.set_frames(self.walking_frames)
-        self.load_frame(0)
-        self.fix_snail_frame()
-        
-        self.pick_move_or_shoot(_tanks)
-     
     def give_balls(self, tank):
         if self.balls:
             for ball in self.balls:
@@ -403,12 +399,19 @@ class Tank (cosmos.Celestial):
                     tank.balls.append(ball)
     
     def pick_launch_angle(self):
-        if random.getrandbits(1):
-            self.angle_guess = random.uniform(
-                (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
+        if self.target:
+            ang_bwn = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+            if ang_bwn > 0:
+                self.angle_guess = self.pos_angle + math.pi/3
+            else:
+                self.angle_guess = self.pos_angle - math.pi/3
         else:
-            self.angle_guess = random.uniform(
-                (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
+            if random.getrandbits(1):
+                self.angle_guess = random.uniform(
+                    (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
+            else:
+                self.angle_guess = random.uniform(
+                    (self.pos_angle - 3*math.pi/8), (self.pos_angle - math.pi/8) )
     
     def pick_launch_speed(self):
         if self.target:
@@ -466,7 +469,7 @@ class Tank (cosmos.Celestial):
                 self.eject_ball()
                 self.target = False
 
-    def check_targeting(self):
+    def check_targeting(self, _tanks):
         angle_ready = False
         speed_ready = False
 
@@ -483,6 +486,8 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log(f"{self.name} attempting to fire cannonball...")
             if not self.fire_ball() and self.sts.debug:
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
+        elif self.check_for_danger(_tanks):
+            self.eject_ball()
         elif self.targeting:
             if self.sts.debug and not angle_ready:
                 self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
@@ -529,7 +534,17 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log(
                     f"{self.name} chose to move to {round(self.pos_target, 4)}, cururently at {round(self.pos_angle, 4)}.")
         
-    def move_to_position_target(self):
+    def move_to_position_target(self, _tanks):
+        danger_ball = self.check_for_danger(_tanks)
+        
+        if danger_ball:
+            danger_angle = math.atan2(danger_ball.y, danger_ball.x)
+            angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
+            if angle_between > 0:
+                self.pos_target = danger_angle - math.pi/8
+            else:
+                self.pos_target = danger_angle + math.pi/8
+        
         angle_between = cosmos.angle_between(self.pos_target, self.pos_angle)
 
         if abs(angle_between) < self.tolerance*self.radian_step:
@@ -554,9 +569,12 @@ class Tank (cosmos.Celestial):
             else:
                 self.targeting = False
                 self.pick_position()
-                self.move_to_position_target()
+                self.move_to_position_target(_tanks)
                 if self.sts.debug:
                     self.sts.write_to_log(f"{self.name} chose to move...")
+        elif self.check_for_danger(_tanks):
+            self.pos_target = random.uniform(0, 2*math.pi)
+            self.move_to_position_target(_tanks)
         else:
             self.moving = False
             self.targeting = False
@@ -582,11 +600,11 @@ class Tank (cosmos.Celestial):
         if not self.player_tank:
             if ( time.time() - self.start_wait) > settings.DEFAULT_AI_WAIT_TIME:
                 if self.moving:
-                    self.move_to_position_target()
+                    self.move_to_position_target(_tanks)
                 elif self.targeting:
                     if self.sts.debug:
                         self.sts.write_to_log(f"{self.name} is checking targeting info...")
-                    self.check_targeting()
+                    self.check_targeting(_tanks)
                 else:
                     self.pick_move_or_shoot(_tanks)
 
@@ -640,27 +658,59 @@ class Tank (cosmos.Celestial):
     def load_snail_frames(self):
         if self.snail_color.lower() == "green":
             path_to_frames = os.path.join(settings.SNAILS_PATH, "Green_Snail")
-            self.walking_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Green_Snail_Walking"))
-            self.firing_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Green_Snail_Firing"))
-            self.dying_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Green_Snail_Dying"))
+            self.ball_flash_colors = settings.DEFAULT_GREEN_SNAIL_FLASH_COLORS
+            snail_success = True
         elif self.snail_color.lower() == "red":
             path_to_frames = os.path.join(settings.SNAILS_PATH, "Red_Snail")
+            self.ball_flash_colors = settings.DEFAULT_RED_SNAIL_FLASH_COLORS
+            snail_success = True
+        elif self.snail_color.lower() == "yellow":
+            path_to_frames = os.path.join(settings.SNAILS_PATH, "Yellow_Snail")
+            self.ball_flash_colors = settings.DEFAULT_YELLOW_SNAIL_FLASH_COLORS
+            snail_success = True
+        else:
+            snail_success = False
+            if self.sts.debug:
+                self.sts.write_to_log(
+                    f"Invalid color {self.snail_color} used in tank.load_snail_frames() for {self.name}.")
+        
+        if snail_success:
             self.walking_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Red_Snail_Walking"))
+                os.path.join(path_to_frames, "Walking"))
             self.firing_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Red_Snail_Firing"))
+                os.path.join(path_to_frames, "Firing"))
             self.dying_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Red_Snail_Dying"))
-        elif self.sts.debug:
-            self.sts.write_to_log(
-                f"Invalid color {self.snail_color} used in tank.load_snail_frames() for {self.name}.")
-
+                os.path.join(path_to_frames, "Dying"))
+            self.ball_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Cannonball"))
+            
     def fix_snail_frame(self):
         self.scale_pix_to_body_circle()
         if self.moving_CW:
             self.flip_pix(self.moving_CW, False)
         self.rotate_pix( self.pos_angle - math.pi/2 )
         self.displace_pix_from_homeworld()
+
+    def snail_animation(self):
+        if self.animate and isinstance(self.pix_frames, list):
+            if ( time.time() - self.frame_timer) > self.frame_wait:
+                self.next_frame()
+                self.fix_snail_frame()
+                self.frame_timer = time.time()
+        
+        return self.pix_frame
+
+    def check_for_danger(self, _tanks):
+        dangerous_ball = False
+        danger_dist = self.homeworld.radius*settings.DEFAULT_DANGER_RATIO
+        if not self.player_tank:
+            for _tank in _tanks:
+                for ball in _tank.balls:
+                    ball_dist = self.get_dist(ball.x, ball.y)
+                    if ball_dist < danger_dist:
+                        if ball.exploding or ball.armed:
+                            dangerous_ball = ball
+                            danger_dist = ball_dist
+
+        return dangerous_ball
+        

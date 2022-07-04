@@ -761,6 +761,12 @@ class Celestial:
         """ Flip active sprite over x- and/or y-axis. """
         self.pix = pygame.transform.flip(self.pix, flip_x, flip_y)
 
+    def animation(self):
+        if self.animate and isinstance(self.pix_frames, list):
+            if ( time.time() - self.frame_timer) > self.frame_wait:
+                        self.next_frame()
+                        self.frame_timer = time.time()
+
 # ********************************************************************************************************** 
 # *************************** CANNONBALL!!! ****************************************************************
 # **********************************************************************************************************
@@ -780,6 +786,7 @@ class Cannonball(Celestial):
         self.homeworld = False       # not the homeworld ;)
         self.explode_radius = settings.DEFAULT_EXPLODE_RADIUS
         self.color = settings.DEFAULT_BALL_COLOR
+        self.flash_colors = settings.DEFAULT_FLASH_COLORS
 
         # find and setup stats for homeworld
         self.homeworld = False
@@ -835,12 +842,16 @@ class Cannonball(Celestial):
         # self.active = False
         self.armed = False
         self.exploding = True
+        self.animate = False
+        self.pix = False
         # self.radius = self.explode_radius
         # self.screen_rad = self.explode_radius * self.sts.screen_dist_scale
         # self.set_screen_radius()
         
         # keep track of explosion time.
         self.explode_start = time.time()
+        # keep track of explosion color switching time
+        self.frame_timer = time.time()
     
     def expand(self):
         """ Keep track of exploding cannonball's explosion radius. """
@@ -912,9 +923,9 @@ class Cannonball(Celestial):
                 
         # Check to see if tanks are hit and destroy it if so
         for tank in _tanks:
-            if self.exploding and super().check_hit(tank):
+            if self.exploding and super().check_hit(tank) and not tank.invulnerable:
                 hit = True
-                tank.active = False
+                tank.dying = True
                 if self.sts.debug:
                     self.sts.write_to_log(f"{tank.name} has been hit by {self.name}!")
                     
@@ -937,31 +948,8 @@ class Cannonball(Celestial):
             extra_cannonball_text.append("This cannonball is a celestial explosion.")
         self.sts.write_to_log(extra_cannonball_text)
 
-    def choose_flash_color(self):
-        # Choose a random color for exploding cannonball 
-        # (if it doesn't have a sprite)
-        random_flash = random.randint(1, 6)
-        if random_flash == 1:
-            # Cinnabar
-            self.color = (246, 65, 45)
-        elif random_flash == 2:
-            # Mystic Red
-            self.color = (255, 86, 7)
-        elif random_flash == 3:
-            # Vivid Gamboge
-            self.color == (255, 152, 0)
-        elif random_flash == 4:
-            # Fluorescent Orange
-            self.color == (255, 193, 0)
-        elif random_flash == 5:
-            # Vivid Yellow
-            self.color = (255, 236, 25)
-        else:
-            # White
-            self.color = (255, 255, 255)
-            
     def flash(self):
         """ Change cannonball color while exploding """
-        if self.exploding:
-            if random.uniform(0, 1) < settings.DEFAULT_FLASH_CHANCE:
-               self.choose_flash_color()
+        if ( time.time() - self.frame_timer ) > self.frame_wait:
+            self.color = random.choice(self.flash_colors)
+            self.frame_timer = time.time()

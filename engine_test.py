@@ -21,17 +21,9 @@ MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-# Create player tank, index 0
-MainEngine.create_tank()
-MainEngine.tanks[0].set_player_tank()
-
-# enemy tanks
-MainEngine.create_tank()
-# MainEngine.tanks[0].set_enemy_tank()
-MainEngine.tanks[-1].set_enemy_tank(MainEngine.tanks)
-
-# AI testing...
-# MainEngine.tanks[-1].pick_position()
+MainEngine.create_tank(False)
+MainEngine.create_tank(False)
+MainEngine.create_tank(False)
 
 destroyed_tanks = False
 

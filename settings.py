@@ -50,6 +50,7 @@ DEFAULT_CRIT_MASS_RATIO = 1
 DEFAULT_TANK_SCREENRAD = 3      # default tank screen radius
 DEFAULT_TANK_COLOR = (0,255,0)  # default tank color, lime green?
 DEFAULT_ENEMY_TANK_COLOR = (255, 0, 255)    # enemy tank color, magenta
+DEFAULT_THIRD_TANK_COLOR = (255, 255, 0)    # third tank color, yellow
 DEFAULT_ESCAPE_FRAC = 0.5       # default cannonball speed as fraction
 
 DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
@@ -68,12 +69,56 @@ SKIP_COLOR = 100
 
 DEFAULT_BALL_COLOR = (255, 255, 255)    # white
 DEFAULT_ARMED_COLOR = (255, 69, 0)        # orange
+DEFAULT_FLASH_COLORS = [ 
+    (240, 248, 255),    # alice blue
+    (176, 244, 230),    # powder blue
+    (135, 206, 250),    # light sky blue
+    (135, 206, 235),    # sky blue
+    (0, 191, 255),      # deep sky blue
+    (30, 144, 255),     # dodger blue
+    (0, 0, 255),        # blue
+    (100, 149, 237),    # corn flower blue
+    (255, 255, 255),    # white
+    (65, 105, 255) ]    # royal blue
+
+DEFAULT_GREEN_SNAIL_FLASH_COLORS = [
+    (124, 252, 0),      # lawn green
+    (127, 252, 0),      # chartreuse
+    (0, 255, 0),        # lime green
+    (255, 255, 255),     # white
+    (0, 255, 127),       # spring green
+    (152, 251, 152),     # pale green
+    (0, 250, 154)       # medium spring green
+]
+
+DEFAULT_RED_SNAIL_FLASH_COLORS = [
+    (220, 20, 60),       # crimson
+    (255, 255, 255),    # white
+    (255, 0, 0),        # red
+    (255, 0, 255),      # magenta
+    (238, 130, 238),     # violet
+    (216, 191, 216),     # thisle
+    (221, 160, 221)     # plum
+]
+
+DEFAULT_YELLOW_SNAIL_FLASH_COLORS = [
+    (255, 255, 255),    # white
+    (255, 215, 0),       # gold
+    (255, 165, 0),      # orange
+    (255, 255, 0),      # yellow
+    (255, 255, 224),    # light yellow
+    (255, 255, 153),    # light yellow #2
+    (255, 255, 102)    # light yellow #3
+]
+
 DEFAULT_BALL_SCREEN_RAD = 2     # small yet visible
 # scaling for changes to velocity per key press
 DEFAULT_RADIAN_STEP = ((2*math.pi) / 360)
-DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # default arrow colors
-DEFAULT_WARM_ARROW_COLOR = (255, 255, 0)
-DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)
+
+# Default targeting arrow colors
+DEFAULT_HOT_ARROW_COLOR = (255, 0, 0)       # red
+DEFAULT_WARM_ARROW_COLOR = (128, 0, 128)    # purple
+DEFAULT_COLD_ARROW_COLOR = (0, 255, 255)    # cyan
 HOT_THRESHOLD = 0.9                         # thresholds for arrows
 COLD_THRESHOLD = 0.3
 
@@ -118,6 +163,9 @@ DEFAULT_AI_TOLERANCE = 1
 DEFAULT_AI_FIRE_WEIGHT = 0.8
 # How long in seconds that AI tank will wait to make an action to slow it down
 DEFAULT_AI_WAIT_TIME = 0
+# AI Tanks will avoid armed or exploding balls 
+# this fraction of the homeworld's radius away
+DEFAULT_DANGER_RATIO = 0.2
 
 # Game will keep track of objects that are this far out of screen,
 # i.e. if value is 0.5, objects will be keep in memory as long as they
@@ -139,6 +187,8 @@ MOONS_PATH = "Pix/Moons"
 SNAILS_PATH = "Pix/Snails"
 
 EXPLOSIONS_PATH = "Pix/Explosions"
+
+DEFAULT_BALL_PIX_SCREEN_RAD = 10
 
 DEFAULT_SNAIL_SCREEN_RADIUS = 20
 DEFAULT_SNAIL_DISPLACEMENT_FACTOR = 0.2

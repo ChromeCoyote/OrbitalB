@@ -20,6 +20,13 @@ class Engine:
 
         self.displacement = (0,0)
 
+        self.snail_colors = ["Green", "Red", "Yellow"]
+        self.tank_colors = [
+            settings.DEFAULT_TANK_COLOR, 
+            settings.DEFAULT_ENEMY_TANK_COLOR,
+            settings.DEFAULT_THIRD_TANK_COLOR ]
+        self.color_index = 0
+
         # flags for game over, win
         self.game_over = False
     
@@ -112,11 +119,43 @@ class Engine:
 
         return comet_created
     
-    def create_tank(self):
+    def create_tank(self, player_tank):
         tank_created = False
-        
-        if len(self.celestials) > 0:
+        if isinstance(self.celestials, list) and len(self.celestials) > 0:
+            num_tanks = len(self.tanks)
+        else:
+            num_tanks = -1  
+
+        if num_tanks >= 0 and self.color_index < len(self.snail_colors):
             self.tanks.append(tank.Tank(self.sts, self.celestials))
+            num_tanks += 1
+            
+            self.tanks[-1].snail_color = self.snail_colors[self.color_index]
+            self.tanks[-1].color = self.tank_colors[self.color_index]
+            self.color_index += 1
+
+            if player_tank:
+                self.tanks[-1].player_tank = True
+                self.tanks[-1].name = f"Tank #{num_tanks} {self.tanks[-1].snail_color} Player Tank"
+            else:
+                self.tanks[-1].player_tank = False
+                self.tanks[-1].name = f"Tank #{num_tanks} {self.tanks[-1].snail_color} AI Tank"
+
+            for tank_ind in range(0, num_tanks):
+                self.tanks[tank_ind].pos_angle = tank_ind*(2*math.pi / num_tanks) + settings.DEFAULT_POSITION_ANGLE
+
+            self.tanks[-1].get_surface_pos()
+            self.tanks[-1].reset_default_launch()
+
+            self.tanks[-1].screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
+            self.tanks[-1].load_snail_frames()
+            self.tanks[-1].set_frames(self.tanks[-1].walking_frames)
+            self.tanks[-1].load_frame(0)
+            self.tanks[-1].fix_snail_frame()
+
+            if self.sts.debug:
+                self.sts.write_to_log(f"{self.tanks[-1].name} successfully created!")        
+            
             tank_created = True
 
         return tank_created
@@ -135,7 +174,7 @@ class Engine:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 for tank in self.tanks:
-                    if tank.player_tank:
+                    if tank.player_tank and not tank.dying:
                         if event.key == tank.chamber_ball_key:
                             if not tank.chamber_ball():
                                 if self.sts.debug:
@@ -170,24 +209,26 @@ class Engine:
                         elif event.key == tank.eject_ball_key:
                             tank.eject_ball()
         for tank in self.tanks:
-            if not tank.player_tank:
+            if not tank.player_tank and not tank.dying:
                 tank.make_choices(self.tanks)
 
     def draw_objects(self):
+        for body in self.celestials:
+            if not body.homeworld:
+                body.draw_bodycircle()
+
         if self.tanks:
             for tank in self.tanks:
-                if tank.chambered_ball:
-                    tank.draw_launch_v()
-                tank.draw_bodycircle()
                 if tank.balls:
                     for ball in tank.balls:
                         if ball.active or ball.exploding:
                             ball.draw_bodycircle()
-        
-        for body in self.celestials:
-            # if not body.homeworld:
-            body.draw_bodycircle()
+                if tank.chambered_ball:
+                    tank.draw_launch_v()
+                tank.draw_bodycircle()
 
+        self.celestials[0].draw_bodycircle()
+        
     def display_game_message(self, message, location, font_color):
         text_to_show = pygame.font.Font.render(
             self.font, message, True, font_color)

@@ -29,6 +29,18 @@ def check_tanks(tanks, _settings):
                 tanks.remove(tank)
                 if _settings.debug:
                     _settings.write_to_log(f"Tank successfully destroyed!")
+            elif tank.animate:
+                if tank.sts.debug:
+                    tank.sts.write_to_log(f"{tank.name} is being animated...")
+                if ( time.time() - tank.frame_timer ) > tank.frame_wait:
+                    tank.next_frame()
+                    tank.fix_snail_frame()
+                    tank.frame_timer = time.time()
+                    if tank.sts.debug:
+                        tank.sts.write_to_log(
+                            [f"{tank.name} has advanced to next frame...", 
+                            f"{tank.pix} selected..."])
+        
         if not destroyed_tanks:
             destroyed_tanks = False
     else:
@@ -84,6 +96,7 @@ class Tank (cosmos.Celestial):
         self.winner = False         # not a winner yet!
 
         self.moving = False
+        self.moving_CW = False
         self.targeting = False
         self.dying = False
 
@@ -118,7 +131,6 @@ class Tank (cosmos.Celestial):
         self.start_wait = 0
 
         self.displacement_factor = settings.DEFAULT_SNAIL_DISPLACEMENT_FACTOR
-
      
         # orbital constant
         if self.homeworld:
@@ -206,6 +218,15 @@ class Tank (cosmos.Celestial):
             [self.balls[-1].vx, self.balls[-1].vy] = self.get_launch_velocity()
             self.balls[-1].chambered = True
             self.balls[-1].name = f"{self.name}'s Cannonball #{self.total_balls}"
+
+            if self.snail_color:
+                self.set_frames(self.firing_frames)
+                self.load_frame(0)
+                self.fix_snail_frame()
+                self.animate = True
+                self.frame_wait = 1/3
+                self.frame_timer = time.time()
+
             chamber_success = True
 
         return chamber_success
@@ -267,12 +288,13 @@ class Tank (cosmos.Celestial):
                         if ball.stuck_to_celestial:
                             ball.get_surface_pos()
                         if not ball.celestial_explosion:
-                            ball.flash()
                             ball.expand()
-                        else:
+                        if ball.animate:
                             if ( time.time() - ball.frame_timer) > ball.frame_wait:
                                 ball.next_frame()
                                 ball.frame_timer = time.time()
+                        else:
+                            ball.flash()
 
                 ball.check_impact(tanks)
                 
@@ -347,10 +369,11 @@ class Tank (cosmos.Celestial):
         self.get_surface_pos()
         self.reset_default_launch()
 
+        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
         self.load_snail_frames()
         self.set_frames(self.walking_frames)
-        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
-        self.set_pix()
+        self.load_frame(0)
+        self.fix_snail_frame()
     
     def set_enemy_tank(self, _tanks):
         """ Sets tank to an enemy """
@@ -363,10 +386,11 @@ class Tank (cosmos.Celestial):
         self.reset_default_launch()
         self.start_wait = time.time()
 
+        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
         self.load_snail_frames()
         self.set_frames(self.walking_frames)
-        self.screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
-        self.set_pix()
+        self.load_frame(0)
+        self.fix_snail_frame()
         
         self.pick_move_or_shoot(_tanks)
      
@@ -579,45 +603,39 @@ class Tank (cosmos.Celestial):
         displace_vector = numpy.multiply(self.displacement_factor, displace_vector)
         self.pix_offset_x = int(displace_vector[0])
         self.pix_offset_y = int(displace_vector[1])
-    
-    def set_pix(self):
-        # self.load_frame(self.pix_frame)
-        self.displace_pix_from_homeworld()
-        # self.get_surface_pos()
-        self.scale_pix_to_body_circle()
-        self.rotate_pix(self.pos_angle - math.pi/2)
-        # self.get_screenxy()
  
     def move_CCW(self):
         self.pos_angle += self.radian_step
         self.get_surface_pos()
         self.reset_default_launch()
+        if self.snail_color:
+            if self.moving_CW:
+                self.moving_CW = False
+            self.next_frame()
+            self.fix_snail_frame()
         if not self.moving:
             self.moving = True
+            self.moving_CW = False
             if self.snail_color:
                 self.set_frames(self.walking_frames)
+                self.animate = False
         # self.get_screenxy()
-        if self.pix and isinstance(self.pix_frames, list):
-            self.next_frame()
-            self.scale_pix_to_body_circle()
-            self.rotate_pix(self.pos_angle - math.pi/2)
-            self.displace_pix_from_homeworld()
-     
+
     def move_CW(self):
         self.pos_angle -= self.radian_step
         self.get_surface_pos()
         self.reset_default_launch()
         # self.get_screenxy()
+        if self.snail_color:
+            if not self.moving_CW:
+                self.moving_CW = True
+            self.next_frame()
+            self.fix_snail_frame()
         if not self.moving:
             self.moving = True
             if self.snail_color:
                 self.set_frames(self.walking_frames)
-        if self.pix and isinstance(self.pix_frames, list):
-            self.next_frame()
-            self.scale_pix_to_body_circle()
-            self.flip_pix(True, False)
-            self.rotate_pix( self.pos_angle - math.pi/2 )
-            self.displace_pix_from_homeworld()
+                self.animate = False
             
     def load_snail_frames(self):
         if self.snail_color.lower() == "green":
@@ -640,3 +658,9 @@ class Tank (cosmos.Celestial):
             self.sts.write_to_log(
                 f"Invalid color {self.snail_color} used in tank.load_snail_frames() for {self.name}.")
 
+    def fix_snail_frame(self):
+        self.scale_pix_to_body_circle()
+        if self.moving_CW:
+            self.flip_pix(self.moving_CW, False)
+        self.rotate_pix( self.pos_angle - math.pi/2 )
+        self.displace_pix_from_homeworld()

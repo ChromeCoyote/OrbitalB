@@ -218,6 +218,7 @@ class Celestial:
         self.frame_wait = 1 / self.sts.fps  # default time to wait to change frames
         self.frame_timer = 0        # how long to display each frame, usually 1/FPS
         # offset rendering of sprite by (pix_offset_x, pix_offset_y)
+        self.animate = False
         self.pix_offset_x = 0       
         self.pix_offset_y = 0
     
@@ -448,7 +449,7 @@ class Celestial:
         celestial.vx *= math.sqrt(self.sts.energy_loss)
         celestial.vy *= math.sqrt(self.sts.energy_loss)
 
-    def break_self(self, celestials, _tanks, break_plane):
+    def break_self(self, celestials, break_plane):
         if self.mass >= self.sts.crit_mass:                       
             # add_celestial_explosion(self, _tanks)
             self.radius /= 2
@@ -518,13 +519,13 @@ class Celestial:
                         # bounce the two away from each other
                         self.bounce(celestial)
                         # break the celestial in half
-                        break_celestial(celestial, celestials, _tanks, celestial.get_unit(self.x, self.y))
+                        break_celestial(celestial, celestials, celestial.get_unit(self.x, self.y))
                     # Else, if the other's mass is too small but isn't the homeworld... ....
                     elif (self.mass * self.sts.crit_mass_ratio) < celestial.mass and not self.homeworld:
                         # add explosion where self used to be
                         add_celestial_explosion(self, _tanks)
                         self.bounce(celestial)
-                        self.break_self(celestials, _tanks, self.get_unit(celestial.x,  celestial.y))
+                        self.break_self(celestials, self.get_unit(celestial.x,  celestial.y))
                     # fix overlap if any
                     self.fix_overlap(celestial)
                                                                
@@ -666,13 +667,13 @@ class Celestial:
     def next_frame(self):
         """  Select active image from next sprite in list of frame sprites. """
         if isinstance(self.pix_frames, list):
-            self.pix = self.pix_frames[self.pix_frame]
-            self.scale_pix_to_body_circle()
             if self.pix_frame < ( len(self.pix_frames) - 1 ):
                 self.pix_frame += 1
             else:
                 # reset frame index to zero if too large for frame list
                 self.pix_frame = 0
+            self.pix = self.pix_frames[self.pix_frame]
+            self.scale_pix_to_body_circle()
         elif self.sts.debug:
             self.sts.write_to_log(
                 f"ERROR in Cosmos.next_frame:  No list of pix frames defined for {self.name}.")
@@ -681,10 +682,10 @@ class Celestial:
         """ Load indicated frame from frame sprite list and scale it. """
         if isinstance(self.pix_frames, list) and isinstance(frame, int):
             self.pix_frame = frame
-            self.scale_pix_to_body_circle()
             if self.pix_frame > ( len(self.pix_frames) - 1):
                 self.pix_frame = 0
             self.pix = self.pix_frames[self.pix_frame]
+            self.scale_pix_to_body_circle()
         elif self.sts.debug:
             self.sts.write_to_log(
                 f"ERROR in Cosmos.load_frame:  No list of pix frames defined for {self.name}, or invalid frame.")
@@ -711,6 +712,7 @@ class Celestial:
                         self.sts.write_to_log(f"Pix at {frame_file} loaded as frame for {self.name}...")
                 elif self.sts.debug:
                     self.sts.write_to_log(f"ERROR for {self.name}:  {frame_file} not found!")
+            self.animate = True
             self.load_frame(0)
         else:
             self.pix_frames = False
@@ -748,7 +750,6 @@ class Celestial:
         if isinstance(frames, list):
             self.pix_frames = frames
             self.load_frame(0)
-
 
     def rotate_pix(self, rads):
         """ Rotate active sprite by given radians. """
@@ -897,7 +898,7 @@ class Cannonball(Celestial):
                                 # Blow it up!
                                 add_celestial_explosion(celestial, _tanks)
                                 celestial.break_self(
-                                    self.celestials, _tanks, celestial.get_unit(self.x, self.y))
+                                    self.celestials, celestial.get_unit(self.x, self.y))
                                 # Free stuck explosion from destroyed celestial
                                 self.stuck_to_celestial = False
                                 # self.exploding = False

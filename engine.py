@@ -174,7 +174,7 @@ class Engine:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 for tank in self.tanks:
-                    if tank.player_tank and not tank.dying:
+                    if tank.player_tank and not tank.frozen:
                         if event.key == tank.chamber_ball_key:
                             if not tank.chamber_ball():
                                 if self.sts.debug:
@@ -208,8 +208,10 @@ class Engine:
                             tank.detonate_ball()
                         elif event.key == tank.eject_ball_key:
                             tank.eject_ball()
+                        elif event.key == tank.activate_shields:
+                            tank.raise_shields()
         for tank in self.tanks:
-            if not tank.player_tank and not tank.dying:
+            if not tank.player_tank and not tank.frozen:
                 tank.make_choices(self.tanks)
 
     def draw_objects(self):

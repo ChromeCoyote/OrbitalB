@@ -10,15 +10,27 @@ def check_tanks(tanks, _settings):
         for tank in tanks[:]:
             
             dying_frame = tank.snail_animation()
+
+            if tank.invulnerable:
+                if ( time.time() - tank.shield_timer ) > settings.DEFAULT_SHIELD_TIME:
+                    tank.invulnerable = False
+                    tank.frozen = False
+                    tank.shield_cooldown = time.time()
+                    tank.set_frames(tank.walking_frames)
+                    tank.fix_snail_frame()
+                    tank.animate = False
+                    if not tank.player_tank:
+                        tank.pick_move_or_shoot(tanks)
             
             if tank.dying:
                 if not tank.first_death:
                     tank.first_death = True
+                    tank.frozen = True
                     tank.animate = True
                     tank.set_frames(tank.dying_frames)
                     tank.load_frame(0)
                     tank.fix_snail_frame()
-                    tank.frame_wait = 1 / 20
+                    tank.frame_wait = 1 / 10
                     tank.frame_timer = time.time()
                 elif dying_frame == ( len(tank.pix_frames) - 1):
                         tank.dying = False
@@ -103,15 +115,22 @@ class Tank (cosmos.Celestial):
         self.moving = False
         self.moving_CW = False
         self.targeting = False
+        self.frozen = False
+        
         self.dying = False
         self.first_death = False
+        
         self.invulnerable = False
+        self.shield_timer = False
+        self.shield_cooldown = False
 
         self.snail_color = False
         self.walking_frames = False
         self.firing_frames = False
         self.dying_frames = False
         self.ball_frames = False
+        self.shield_frames = False
+
         self.ball_flash_colors = False
 
         self.get_surface_pos()     # initalize x, y posistion
@@ -126,6 +145,7 @@ class Tank (cosmos.Celestial):
         self.move_CW_key = settings.MOVE_TANK_CW
         self.detonate_ball_key = settings.DETONATE_BALL
         self.eject_ball_key = settings.EJECT_BALL
+        self.activate_shields = settings.ACTIVATE_SHIELDS
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -266,6 +286,9 @@ class Tank (cosmos.Celestial):
             self.balls.remove(found_chambered_ball)
             self.chambered_ball = False
             self.targeting = False
+            self.set_frames(self.walking_frames)
+            self.fix_snail_frame()
+            self.animate = False
                     
     def fire_ball(self):
         """ Fire chambered cannonball """
@@ -488,6 +511,8 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
         elif self.check_for_danger(_tanks):
             self.eject_ball()
+            if self.check_shields_ready():
+                self.raise_shields()
         elif self.targeting:
             if self.sts.debug and not angle_ready:
                 self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
@@ -538,12 +563,15 @@ class Tank (cosmos.Celestial):
         danger_ball = self.check_for_danger(_tanks)
         
         if danger_ball:
-            danger_angle = math.atan2(danger_ball.y, danger_ball.x)
-            angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
-            if angle_between > 0:
-                self.pos_target = danger_angle - math.pi/8
+            if self.check_shields_ready():
+                self.raise_shields()
             else:
-                self.pos_target = danger_angle + math.pi/8
+                danger_angle = math.atan2(danger_ball.y, danger_ball.x)
+                angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
+                if angle_between > 0:
+                    self.pos_target = danger_angle - math.pi/8
+                else:
+                    self.pos_target = danger_angle + math.pi/8
         
         angle_between = cosmos.angle_between(self.pos_target, self.pos_angle)
 
@@ -636,6 +664,7 @@ class Tank (cosmos.Celestial):
             self.moving_CW = False
             if self.snail_color:
                 self.set_frames(self.walking_frames)
+                self.fix_snail_frame()
                 self.animate = False
         # self.get_screenxy()
 
@@ -653,6 +682,7 @@ class Tank (cosmos.Celestial):
             self.moving = True
             if self.snail_color:
                 self.set_frames(self.walking_frames)
+                self.fix_snail_frame()
                 self.animate = False
             
     def load_snail_frames(self):
@@ -683,6 +713,8 @@ class Tank (cosmos.Celestial):
                 os.path.join(path_to_frames, "Dying"))
             self.ball_frames = self.load_frames_to(
                 os.path.join(path_to_frames, "Cannonball"))
+            self.shield_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Shielded"))
             
     def fix_snail_frame(self):
         self.scale_pix_to_body_circle()
@@ -713,4 +745,34 @@ class Tank (cosmos.Celestial):
                             danger_dist = ball_dist
 
         return dangerous_ball
+
+    def check_shields_ready(self):
+        if not self.shield_cooldown or ( (
+            time.time() - self.shield_cooldown) > settings.DEFAULT_SHIELD_COOLDOWN_TIME ):
+            
+            shields_ready = True
+        else:
+            shields_ready = False
+
+        return shields_ready
+        
+    def raise_shields(self):
+        shields_raised = False
+
+        if self.check_shields_ready():
+            self.animate = True
+            self.frozen = True
+            self.invulnerable = True
+            self.shield_timer = time.time()
+            if self.snail_color:
+                self.set_frames(self.shield_frames)
+                self.load_frame(0)
+                self.fix_snail_frame()
+                self.animate = True
+                self.frame_wait = 1 / 10
+                self.frame_timer = time.time()
+            
+            shields_raised = True
+
+        return shields_raised
         

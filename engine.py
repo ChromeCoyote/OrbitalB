@@ -215,20 +215,27 @@ class Engine:
                 tank.make_choices(self.tanks)
 
     def draw_objects(self):
-        for body in self.celestials:
-            if not body.homeworld:
-                body.draw_bodycircle()
-
+        # draw cannonballs and explosions first...
         if self.tanks:
             for tank in self.tanks:
                 if tank.balls:
                     for ball in tank.balls:
                         if ball.active or ball.exploding:
                             ball.draw_bodycircle()
+        
+        # then all celestials but the homeworld....
+        for body in self.celestials:
+            if not body.homeworld:
+                body.draw_bodycircle()
+
+        # then launch arrows, then tanks....
+        if self.tanks:
+            for tank in self.tanks:
                 if tank.chambered_ball:
                     tank.draw_launch_v()
                 tank.draw_bodycircle()
 
+        # then finally the homworld
         self.celestials[0].draw_bodycircle()
         
     def display_game_message(self, message, location, font_color):

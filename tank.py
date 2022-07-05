@@ -425,9 +425,9 @@ class Tank (cosmos.Celestial):
         if self.target:
             ang_bwn = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
             if ang_bwn > 0:
-                self.angle_guess = self.pos_angle + math.pi/3
+                self.angle_guess = self.pos_angle + math.pi/4
             else:
-                self.angle_guess = self.pos_angle - math.pi/3
+                self.angle_guess = self.pos_angle - math.pi/4
         else:
             if random.getrandbits(1):
                 self.angle_guess = random.uniform(

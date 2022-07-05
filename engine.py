@@ -1,7 +1,7 @@
 # Main Game "Engine"
 
 
-import math, pygame, random, sys
+import math, pygame, random, sys, time
 import numpy
 import settings, cosmos, tank
 
@@ -29,7 +29,11 @@ class Engine:
 
         # flags for game over, win
         self.game_over = False
-    
+
+        self.messages = []
+        self.screen_message = False
+        self.message_rect = False
+
     def set_font_size(self, new_font_size):
         self.font = pygame.font.SysFont(None, new_font_size)
     
@@ -140,18 +144,18 @@ class Engine:
             else:
                 self.tanks[-1].player_tank = False
                 self.tanks[-1].name = f"Tank #{num_tanks} {self.tanks[-1].snail_color} AI Tank"
-
-            for tank_ind in range(0, num_tanks):
-                self.tanks[tank_ind].pos_angle = tank_ind*(2*math.pi / num_tanks) + settings.DEFAULT_POSITION_ANGLE
-
-            self.tanks[-1].get_surface_pos()
-            self.tanks[-1].reset_default_launch()
+                # self.tanks[-1].pick_move_or_shoot(self.tanks)
 
             self.tanks[-1].screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
             self.tanks[-1].load_snail_frames()
             self.tanks[-1].set_frames(self.tanks[-1].walking_frames)
             self.tanks[-1].load_frame(0)
-            self.tanks[-1].fix_snail_frame()
+            
+            for tank_ind in range(0, num_tanks):
+                self.tanks[tank_ind].pos_angle = tank_ind*(2*math.pi / num_tanks) + settings.DEFAULT_POSITION_ANGLE
+                self.tanks[tank_ind].get_surface_pos()
+                self.tanks[tank_ind].reset_default_launch()
+                self.tanks[tank_ind].fix_snail_pix()
 
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.tanks[-1].name} successfully created!")        
@@ -208,15 +212,17 @@ class Engine:
                             tank.detonate_ball()
                         elif event.key == tank.eject_ball_key:
                             tank.eject_ball()
-                        elif event.key == tank.activate_shields:
-                            tank.raise_shields()
+                        elif event.key == tank.Spell_shield:
+                            tank.Spell_raise_shields()
+                        elif event.key == tank.Spell_gravity:
+                            tank.Spell_raise_gravity(self.tanks)
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:
                 tank.make_choices(self.tanks)
 
     def draw_objects(self):
         # draw cannonballs and explosions first...
-        if self.tanks:
+        if len(self.tanks) > 0:
             for tank in self.tanks:
                 if tank.balls:
                     for ball in tank.balls:
@@ -229,51 +235,90 @@ class Engine:
                 body.draw_bodycircle()
 
         # then launch arrows, then tanks....
-        if self.tanks:
+        if len(self.tanks) > 0:
             for tank in self.tanks:
                 if tank.chambered_ball:
                     tank.draw_launch_v()
                 tank.draw_bodycircle()
 
-        # then finally the homworld
+        # then the homworld...
         self.celestials[0].draw_bodycircle()
+
+        # then effects...
+        if len(self.tanks) > 0:
+            for tank in self.tanks:
+                if len(tank.effect_pixies) > 0:
+                    for pixie in tank.effect_pixies:
+                        pixie.draw_bodycircle()
+
+        # then messages...
+        self.display_game_message()
         
-    def display_game_message(self, message, location, font_color):
-        text_to_show = pygame.font.Font.render(
-            self.font, message, True, font_color)
-        text_rect = text_to_show.get_rect()
+    def add_message(self, mess_text, mess_location, mess_color):
+        """ Add message to message queue"""
         
-        if location == self.screen_rect.top:
-            text_rect.top = location
-        elif location == self.screen_rect.left:
-            text_rect.left = location
-        elif location == self.screen_rect.bottom:
-            text_rect.bottom = location
-        elif location == self.screen_rect.right:
-            text_rect.right = location
-        elif location == self.screen_rect.topleft:
-            text_rect.topleft = location
-        elif location == self.screen_rect.bottomleft:
-            text_rect.bottomleft = location
-        elif location == self.screen_rect.topright:
-            text_rect.topright = location
-        elif location == self.screen_rect.bottomright:
-            text_rect.bottomright = location
-        elif location == self.screen_rect.midtop:
-            text_rect.midtop = location
-        elif location == self.screen_rect.midleft:
-            text_rect.midleft = location
-        elif location == self.screen_rect.midbottom:
-            text_rect.midbottom = location
-        elif location == self.screen_rect.midright:
-            text_rect.midrighgt = location
-        elif location == self.screen_rect.center:
-            text_rect.center = location
+        # Index 0:  message text
+        # Index 1:  message location
+        # Index 2:  message color
+        # Index 3:  message add time
+        self.messages.append( 
+            [mess_text, mess_location, mess_color, False ]
+        )
+    
+    def set_game_message(self):
+        """ Display ingame message """
+
+        # Index 0:  message text
+        # Index 1:  message location
+        # Index 2:  message color
+        # Index 3:  time start
+        
+        self.screen_message = pygame.font.Font.render(
+            self.font, self.messages[0][0], True, self.messages[0][2])
+        self.message_rect = self.screen_message.get_rect()
+
+        if self.messages[0][1] == self.screen_rect.top:
+            self.message_rect.top = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.left:
+            self.message_rect.left = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.bottom:
+            self.message_rect.bottom = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.right:
+            self.message_rect.right = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.topleft:
+            self.message_rect.topleft = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.bottomleft:
+            self.message_rect.bottomleft = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.topright:
+            self.message_rect.topright = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.bottomright:
+            self.message_rect.bottomright = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.midtop:
+            self.message_rect.midtop = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.midleft:
+            self.message_rect.midleft = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.midbottom:
+            self.message_rect.midbottom = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.midright:
+            self.message_rect.midright = self.messages[0][1]
+        elif self.messages[0][1] == self.screen_rect.center:
+            self.message_rect.center = self.messages[0][1]
         else:
-            text_rect.center = self.screen_rect.center
-            self.sts.write_to_log("ERROR:  Invalid text location sent to Engine.dispay_game_message()")
+            self.message_rect.center = self.screen_rect.center
+            self.sts.write_to_log(
+                "ERROR:  Invalid text location in self.messages[0] for Engine.set_game_message()")
         
-        self.sts.screen.blit(text_to_show, text_rect)
+    def display_game_message(self):
+        if isinstance(self.messages, list):
+            if len(self.messages) > 0:
+                if not self.messages[0][3]:
+                    self.messages[0][3] = time.time()
+                    self.set_game_message()
+                    self.sts.screen.blit(self.screen_message, self.message_rect) 
+                elif ( time.time() - self.messages[0][3] ) > settings.DEFAULT_MESSAGE_TIME:
+                    self.messages.remove(self.messages[0])
+                else:
+                    self.sts.screen.blit(self.screen_message, self.message_rect)   
 
     def center_homeworld(self):
         if self.celestials[0].x or self.celestials[0].y:

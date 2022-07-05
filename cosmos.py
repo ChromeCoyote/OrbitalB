@@ -85,6 +85,8 @@ def add_celestial_explosion(_celestial, _tanks):
     # find random frames from default explosion sprite's directory
     _tanks[0].balls[-1].pix_dir = settings.choose_random_directory(settings.EXPLOSIONS_PATH)
     _tanks[0].balls[-1].load_frames()
+    _tanks[0].balls[-1].animate = True
+    _tanks[0].balls[-1].animate_repeat = True
    
     # set timers
     _tanks[0].balls[-1].explode_start = time.time()
@@ -219,6 +221,8 @@ class Celestial:
         self.frame_timer = 0        # how long to display each frame, usually 1/FPS
         # offset rendering of sprite by (pix_offset_x, pix_offset_y)
         self.animate = False
+        self.animate_repeat = False
+        self.animation_finished = False
         self.pix_offset_x = 0       
         self.pix_offset_y = 0
     
@@ -666,17 +670,21 @@ class Celestial:
 
     def next_frame(self):
         """  Select active image from next sprite in list of frame sprites. """
-        if isinstance(self.pix_frames, list):
-            if self.pix_frame < ( len(self.pix_frames) - 1 ):
+        
+        if isinstance(self.pix_frames, list) and not self.animation_finished:
+            if self.pix_frame < ( len(self.pix_frames) - 1):
                 self.pix_frame += 1
+                if self.pix_frame == ( len(self.pix_frames) - 1 ) and not self.animate_repeat:
+                    self.animation_finished = True
             else:
-                # reset frame index to zero if too large for frame list
                 self.pix_frame = 0
+            
             self.pix = self.pix_frames[self.pix_frame]
             self.scale_pix_to_body_circle()
-        elif self.sts.debug:
-            self.sts.write_to_log(
-                f"ERROR in Cosmos.next_frame:  No list of pix frames defined for {self.name}.")
+                
+        # elif self.sts.debug:
+        #     self.sts.write_to_log(
+        #        f"ERROR in Cosmos.next_frame:  No list of pix frames defined for {self.name}.")
     
     def load_frame(self, frame):
         """ Load indicated frame from frame sprite list and scale it. """
@@ -686,6 +694,7 @@ class Celestial:
                 self.pix_frame = 0
             self.pix = self.pix_frames[self.pix_frame]
             self.scale_pix_to_body_circle()
+            self.animation_finished = False
         elif self.sts.debug:
             self.sts.write_to_log(
                 f"ERROR in Cosmos.load_frame:  No list of pix frames defined for {self.name}, or invalid frame.")
@@ -762,7 +771,7 @@ class Celestial:
         self.pix = pygame.transform.flip(self.pix, flip_x, flip_y)
 
     def animation(self):
-        if self.animate and isinstance(self.pix_frames, list):
+        if self.animate and isinstance(self.pix_frames, list) and not self.animation_finished:
             if ( time.time() - self.frame_timer) > self.frame_wait:
                         self.next_frame()
                         self.frame_timer = time.time()

@@ -64,6 +64,8 @@ DEFAULT_GIVEN_AWAY_TIME = 10           # how long cannonballs last when shooting
 DEFAULT_FLASH_CHANCE = 0.8            # cannonballs flash new color when exploding
 DEFAULT_CANNONBALL_MASS = 1000      # default cannonball mass
 
+DEFAULT_MESSAGE_TIME = 3
+
 # don't select a color every explode tick 
 SKIP_COLOR = 100
 
@@ -146,8 +148,10 @@ DEFAULT_COMET_COLOR = (200, 233, 233)   # ice blue
 DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255)    # white
 
-DEFAULT_SHIELD_COOLDOWN_TIME = 10
-DEFAULT_SHIELD_TIME = 3
+DEFAULT_SPELL_COOLDOWN_TIME = 10
+DEFAULT_SPELL_TIME = 3
+
+DEFAULT_GRAVITY_INCREASE = 10
 
 CHAMBER_BALL = pygame.K_RETURN
 FIRE_BALL = pygame.K_SPACE
@@ -160,11 +164,13 @@ MOVE_TANK_CCW = pygame.K_LEFT
 DETONATE_BALL = pygame.K_DELETE
 EJECT_BALL = pygame.K_BACKSLASH
 EXTI_MENU = pygame.K_ESCAPE
-ACTIVATE_SHIELDS = pygame.K_s
+SPELL_SHIELD = pygame.K_s
+SPELL_GRAVITY = pygame.K_g
 
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
-DEFAULT_AI_FIRE_WEIGHT = 0.8
+DEFAULT_AI_FIRE_WEIGHT = 0.5
+DEFAULT_AI_SPELL_WEIGHT = 0.2
 # How long in seconds that AI tank will wait to make an action to slow it down
 DEFAULT_AI_WAIT_TIME = 0
 # AI Tanks will avoid armed or exploding balls 
@@ -265,7 +271,7 @@ class Settings:
         """Initialize the game's settings."""
         pygame.init()       # inialize pygame modules
 
-        self.debug = True   # debugging on for now...
+        self.debug = False   # debugging on for now...
 
          # Stuff for game log
         self.now = datetime.datetime.now()
@@ -288,7 +294,7 @@ class Settings:
         self.crit_mass_ratio = DEFAULT_CRIT_MASS_RATIO
         self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
-        self.meteor_shower = False
+        self.meteor_shower = True
         self.asteroid_chance = DEFAULT_ASTEROID_CHANCE
         
         # declaration of Surface object
@@ -507,9 +513,9 @@ class Settings:
         pix_path = choose_random_directory(FARAWAY_OBJECT_DIR)
         pix_path = choose_random_file(pix_path)
         if pix_path:
-            self.faraway_pixies.append(pygame.image.load_extended(pix_path))
-            self.faraway_pixies[-1].convert_alpha()
-            self.pix_xy.append(self.pick_spot_in_zone(zone))
+            self.faraway_pixies.append(
+                (pygame.image.load_extended(pix_path), self.pick_spot_in_zone(zone)) )
+            self.faraway_pixies[-1][0].convert_alpha()
             if self.debug:
                 self.write_to_log(f"Image at {pix_path} choosen for background...")
         elif self.debug:
@@ -536,20 +542,10 @@ class Settings:
                 self.starfield_clr[ind])
 
         if self.faraway_pixies:
-            for pixie in range(len(self.faraway_pixies) ):
-                self.screen.blit(self.faraway_pixies[pixie], self.pix_xy[pixie])
-
-    def restore_screen(self):
-         # declaration of Surface object
-        self.screen = pygame.display.set_mode(
-            (self.screen_width, self.screen_height) )
-        # get actual window size
-        (self.act_w, self.act_h) = pygame.display.get_window_size()
-
-    def destroy_screen(self):
-        """prevent errors with deepcopy()"""
-        del self.screen
-
+            for pixie in self.faraway_pixies:
+                self.screen.blit(
+                    pixie[0], pixie[0].get_rect(center = pixie[1]) )
+    
     def write_to_log(self, text):
         """ Add list or string of text to memory to be written later to file. """
         self.now = datetime.datetime.now()

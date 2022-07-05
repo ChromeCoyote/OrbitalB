@@ -1,5 +1,6 @@
-import settings, pygame, cosmos, sys, engine
+import settings, pygame, sys
 import tank as _tank
+import cosmos, engine
 
 MainSettings = settings.Settings()
 
@@ -12,10 +13,10 @@ MainEngine = engine.Engine(MainSettings)
 MainEngine.create_homeworld()
 
 # create moons
-MainEngine.create_moon()
-MainEngine.create_moon()
-MainEngine.create_moon()
-MainEngine.create_moon()
+# MainEngine.create_moon()
+# MainEngine.create_moon()
+# MainEngine.create_moon()
+# MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 
@@ -31,16 +32,21 @@ menu_wait = False
 
 while not MainEngine.game_over:
 
-    MainEngine.manage_events(pygame.event.get())
-
     MainEngine.meteor_shower()
 
+    MainEngine.create_universe()      
+    MainEngine.draw_objects()
+        
+    MainEngine.manage_events(pygame.event.get())
+
+    # MainEngine.meteor_shower()
+
     MainEngine.ticktock()
-    MainEngine.create_universe()
 
     # main time time for physics calculations...
     MainEngine.time = 0
     while MainEngine.time < (MainEngine.sts.time_scale * MainEngine.sts.tres):
+        
         
         for body in MainEngine.celestials:
             body.move(MainEngine.celestials)
@@ -56,36 +62,24 @@ while not MainEngine.game_over:
         for tank in MainEngine.tanks:
             tank.move_balls()
             tank.check_balls(MainEngine.tanks)
+            tank.check_spells(MainEngine.tanks)
      
         destroyed_tanks = _tank.check_tanks(MainEngine.tanks, MainEngine.sts)
         if destroyed_tanks:
             for tank in destroyed_tanks:
-                menu_wait = True
-                MainEngine.draw_objects()
-                MainEngine.display_game_message(
+                # put image of dead snail in background images
+                MainSettings.faraway_pixies.append( 
+                   (tank.pix, (tank.screen_x + tank.pix_offset_x, tank.screen_y + tank.pix_offset_y )) )
+                MainEngine.add_message(
                     f"{tank.name} has been destroyed!", MainEngine.screen_rect.center, tank.color)
-                pygame.display.flip()
-                while menu_wait:
-                    events = pygame.event.get()
-                    for event in events:
-                        if event.type == pygame.QUIT:
-                            if MainEngine.sts.debug:
-                                MainEngine.sts.write_to_log("Quitting game and writing log file...")
-                                MainEngine.sts.output_log_to_file()
-                            sys.exit()
-                        elif event.type == pygame.KEYDOWN:
-                            if event.key == settings.EXTI_MENU:
-                                menu_wait = False
-              
+                
         MainEngine.time += MainEngine.sts.tres
-          
-    MainEngine.draw_objects()
         
     # draw FPS to measure performance
     # if MainEngine.sts.debug:
-    if MainEngine.sts.debug:
-        MainEngine.display_game_message(
-            f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR)   
+    # if MainEngine.sts.debug:
+        # MainEngine.display_game_message(
+            # f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR)   
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
         MainEngine.tanks[0].winner = True
@@ -96,7 +90,7 @@ while not MainEngine.game_over:
     pygame.display.flip()
 
 # ENDGAME SCREEN *******************************************
-MainEngine.endgame_screen()
+# MainEngine.endgame_screen()
 if MainEngine.sts.debug:
     MainEngine.sts.write_to_log("Exiting game outside of main loop and writing log file...")
     MainEngine.sts.output_log_to_file()

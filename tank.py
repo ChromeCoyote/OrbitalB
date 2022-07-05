@@ -1,6 +1,6 @@
 # Code for projectile
 
-import pygame, math, random, numpy, time, os
+import pygame, math, random, numpy, time, os, copy
 import settings, cosmos
 
 def check_tanks(tanks, _settings):
@@ -9,32 +9,7 @@ def check_tanks(tanks, _settings):
     if tanks:
         for tank in tanks[:]:
             
-            dying_frame = tank.snail_animation()
-
-            if tank.invulnerable:
-                if ( time.time() - tank.shield_timer ) > settings.DEFAULT_SHIELD_TIME:
-                    tank.invulnerable = False
-                    tank.frozen = False
-                    tank.shield_cooldown = time.time()
-                    tank.set_frames(tank.walking_frames)
-                    tank.fix_snail_frame()
-                    tank.animate = False
-                    if not tank.player_tank:
-                        tank.pick_move_or_shoot(tanks)
-            
-            if tank.dying:
-                if not tank.first_death:
-                    tank.first_death = True
-                    tank.frozen = True
-                    tank.animate = True
-                    tank.set_frames(tank.dying_frames)
-                    tank.load_frame(0)
-                    tank.fix_snail_frame()
-                    tank.frame_wait = 1 / 10
-                    tank.frame_timer = time.time()
-                elif dying_frame == ( len(tank.pix_frames) - 1):
-                        tank.dying = False
-                        tank.active = False
+            tank.snail_animation()
 
             if not tank.active:
                 if _settings.debug:
@@ -120,17 +95,32 @@ class Tank (cosmos.Celestial):
         self.dying = False
         self.first_death = False
         
-        self.invulnerable = False
-        self.shield_timer = False
-        self.shield_cooldown = False
+        # *** EFFECTS ***
+        # Holds information for animations that are non-"physical",
+        # such as spell animations
+        self.effect_pixies = []
 
+        # *** STUFF FOR SPELLS ***
+        self.spell_cooldown = False
+        self.spell_timer = False
+        
+        # for shield spell
+        self.invulnerable = False
+        self.Spell_shield_frames = False
+
+        # for gravity spell
+        self.orig_homeworld_mass = self.homeworld.mass
+        self.heavy_mass = self.homeworld.mass
+        self.gravity_rising = False
+        self.gravity_increased = False
+        self.gravity_lowering = False
+        self.Spell_gravity_frames = False
+        
         self.snail_color = False
         self.walking_frames = False
         self.firing_frames = False
         self.dying_frames = False
         self.ball_frames = False
-        self.shield_frames = False
-
         self.ball_flash_colors = False
 
         self.get_surface_pos()     # initalize x, y posistion
@@ -145,7 +135,8 @@ class Tank (cosmos.Celestial):
         self.move_CW_key = settings.MOVE_TANK_CW
         self.detonate_ball_key = settings.DETONATE_BALL
         self.eject_ball_key = settings.EJECT_BALL
-        self.activate_shields = settings.ACTIVATE_SHIELDS
+        self.Spell_shield = settings.SPELL_SHIELD
+        self.Spell_gravity = settings.SPELL_GRAVITY
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -156,6 +147,7 @@ class Tank (cosmos.Celestial):
         self.tolerance = settings.DEFAULT_AI_TOLERANCE
         self.restrict_movement = False
         self.fire_weight = settings.DEFAULT_AI_FIRE_WEIGHT
+        self.spell_weight = settings.DEFAULT_AI_SPELL_WEIGHT
         # timer to slow down AI tank
         self.start_wait = 0
 
@@ -239,7 +231,6 @@ class Tank (cosmos.Celestial):
             self.targeting = True
             self.moving = False
             self.balls.append(cosmos.Cannonball(self.sts, self.celestials))
-            # self.num_balls = len(self.balls)    # set number of balls counted in balls list
             self.total_balls += 1
             self.chambered_ball = True
             self.balls[-1].set_xy(self.x, self.y)
@@ -251,16 +242,17 @@ class Tank (cosmos.Celestial):
             self.balls[-1].color = self.color
             self.balls[-1].flash_colors = self.ball_flash_colors
 
-            # code to load sprite frames
+            # code to load sprite frames for new cannonball
             self.balls[-1].set_frames(self.ball_frames)
+            self.balls[-1].animate_repeat = True
             self.balls[-1].pix = False
 
             if self.snail_color:
                 self.set_frames(self.firing_frames)
-                self.load_frame(0)
-                self.fix_snail_frame()
+                self.fix_snail_pix()
                 self.animate = True
-                self.frame_wait = 1/3
+                self.animate_repeat = False
+                self.frame_wait = 1/2
                 self.frame_timer = time.time()
 
             chamber_success = True
@@ -287,8 +279,9 @@ class Tank (cosmos.Celestial):
             self.chambered_ball = False
             self.targeting = False
             self.set_frames(self.walking_frames)
-            self.fix_snail_frame()
+            self.fix_snail_pix()
             self.animate = False
+            self.animate_repeat = True
                     
     def fire_ball(self):
         """ Fire chambered cannonball """
@@ -448,33 +441,46 @@ class Tank (cosmos.Celestial):
     def guess_launch_angle(self):
         guessed = False
         if self.target:
-            radical_factor = self.mu / (self.homeworld.radius * self.launch_speed**2)
-            if radical_factor >= 0:
-                radical_factor = math.sqrt(radical_factor)
-                if radical_factor <= 1 and radical_factor >= -1:
-                    self.angle_guess = math.asin(radical_factor)
+            R = self.homeworld.radius
+            rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+            d = abs(rads_away)*R
+            v = self.launch_speed
+            g = settings.GRAV_CONST * self.homeworld.mass / (R**2)
+            vp = v / math.sqrt(R*g)
+
+            radical = (1/4)*(1 - (2-vp**2)*vp**2)
+            if radical > 0:
+                radical = (d/(2*R) + 1)*math.sqrt(radical)
+                if radical < 1 and radical > -1:
+                    launch_angle = math.asin(radical)
+
+                    if rads_away > 0:
+                        self.angle_guess = self.pos_angle + math.pi/2 - launch_angle
+                    else:
+                        self.angle_guess = self.pos_angle - math.pi/2 + launch_angle
+
+                    if self.angle_guess > 2*math.pi:
+                        self.angle_guess = self.angle_guess % (2*math.pi)
                     if self.angle_guess < 0:
                         self.angle_guess = 2*math.pi + self.angle_guess
-                    if self.angle_guess > (2*math.pi):
-                        self.angle_guess = self.angle_guess % (2*math.pi)
+
                     guessed = True
-            else:
-                self.pick_launch_angle()
+        else:
+            self.pick_launch_angle()
         
         return guessed
   
     def guess_launch_speed(self):
         guessed = False
         if self.target:
-            if self.pos_angle and self.launch_angle:
-                radical_factor = self.mu / (self.homeworld.radius * (math.sin(self.launch_angle)) ** 2)
-            else:
-                radical_factor = 0
-            if radical_factor > 0:
-                self.speed_guess = math.sqrt(radical_factor)
-                guessed = True
-            else:
-                self.pick_launch_speed()
+            rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+            R = self.homeworld.radius
+            d = abs(rads_away)  *R
+            g = settings.GRAV_CONST * self.homeworld.mass / (R**2)
+            self.launch_speed = math.sqrt( g*d / (d/(2*R) + 1 ) )
+            guessed = True
+        else:
+            self.pick_launch_speed()
         
         return guessed
         
@@ -483,14 +489,14 @@ class Tank (cosmos.Celestial):
         self.pick_launch_speed()
 
     def quick_target(self):
-        self.pick_launch_speed()
+        # self.pick_launch_speed()
+                    
+        self.guess_launch_speed()
         if not self.guess_launch_angle():
-            if not self.guess_launch_speed():
-                if self.sts.debug:
-                    self.sts.write_to_log(
-                        f"{self.name} couldn't find a firing solution, ejecting ball...")
-                self.eject_ball()
-                self.target = False
+            if self.sts.debug:
+                self.sts.write_to_log(
+                    f"{self.name} couldn't find a firing solution, ejecting ball...")
+            self.eject_ball()
 
     def check_targeting(self, _tanks):
         angle_ready = False
@@ -511,8 +517,8 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
         elif self.check_for_danger(_tanks):
             self.eject_ball()
-            if self.check_shields_ready():
-                self.raise_shields()
+            if self.check_spell_ready():
+                self.Spell_raise_shields()
         elif self.targeting:
             if self.sts.debug and not angle_ready:
                 self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
@@ -563,8 +569,8 @@ class Tank (cosmos.Celestial):
         danger_ball = self.check_for_danger(_tanks)
         
         if danger_ball:
-            if self.check_shields_ready():
-                self.raise_shields()
+            if self.check_spell_ready():
+                self.Spell_raise_shields()
             else:
                 danger_angle = math.atan2(danger_ball.y, danger_ball.x)
                 angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
@@ -590,10 +596,14 @@ class Tank (cosmos.Celestial):
         self.pick_target(_tanks)
         if self.target:
             if random.uniform(0, 1) < self.fire_weight:
-                self.chamber_ball()
-                self.simple_target()
-                if self.sts.debug:
-                    self.sts.write_to_log(f"{self.name} chose to shoot...")
+                if random.uniform(0,1) < self.spell_weight and self.check_spell_ready():
+                    self.Spell_raise_gravity(_tanks)
+                else:
+                    self.chamber_ball()
+                    self.simple_target()
+                    # self.quick_target()
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"{self.name} chose to shoot...")
             else:
                 self.targeting = False
                 self.pick_position()
@@ -658,13 +668,14 @@ class Tank (cosmos.Celestial):
             if self.moving_CW:
                 self.moving_CW = False
             self.next_frame()
-            self.fix_snail_frame()
+            self.fix_snail_pix()
         if not self.moving:
             self.moving = True
             self.moving_CW = False
             if self.snail_color:
                 self.set_frames(self.walking_frames)
-                self.fix_snail_frame()
+                self.fix_snail_pix()
+                self.animate_repeat = True
                 self.animate = False
         # self.get_screenxy()
 
@@ -677,12 +688,13 @@ class Tank (cosmos.Celestial):
             if not self.moving_CW:
                 self.moving_CW = True
             self.next_frame()
-            self.fix_snail_frame()
+            self.fix_snail_pix()
         if not self.moving:
             self.moving = True
             if self.snail_color:
                 self.set_frames(self.walking_frames)
-                self.fix_snail_frame()
+                self.fix_snail_pix()
+                self.animate_repeat = True
                 self.animate = False
             
     def load_snail_frames(self):
@@ -713,24 +725,31 @@ class Tank (cosmos.Celestial):
                 os.path.join(path_to_frames, "Dying"))
             self.ball_frames = self.load_frames_to(
                 os.path.join(path_to_frames, "Cannonball"))
-            self.shield_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Shielded"))
+            self.Spell_shield_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Spells/Shield"))
+            self.Spell_gravity_frames = self.load_frames_to(
+                os.path.join(path_to_frames, "Spells/Gravity") ) 
             
-    def fix_snail_frame(self):
+    def fix_snail_pix(self):
         self.scale_pix_to_body_circle()
         if self.moving_CW:
             self.flip_pix(self.moving_CW, False)
         self.rotate_pix( self.pos_angle - math.pi/2 )
         self.displace_pix_from_homeworld()
 
+    def fix_pix_to_snail(self, pixie):
+        pixie = pygame.transform.scale(pixie, (2*self.screen_rad, 2*self.screen_rad))
+
+        rads = self.pos_angle - math.pi/2
+        deg_rot = rads * 180 / math.pi
+        pixie = pygame.transform.rotate(pixie, deg_rot)
+
     def snail_animation(self):
-        if self.animate and isinstance(self.pix_frames, list):
+        if self.animate and isinstance(self.pix_frames, list) and not self.animation_finished:
             if ( time.time() - self.frame_timer) > self.frame_wait:
                 self.next_frame()
-                self.fix_snail_frame()
+                self.fix_snail_pix()
                 self.frame_timer = time.time()
-        
-        return self.pix_frame
 
     def check_for_danger(self, _tanks):
         dangerous_ball = False
@@ -746,28 +765,29 @@ class Tank (cosmos.Celestial):
 
         return dangerous_ball
 
-    def check_shields_ready(self):
-        if not self.shield_cooldown or ( (
-            time.time() - self.shield_cooldown) > settings.DEFAULT_SHIELD_COOLDOWN_TIME ):
+    def check_spell_ready(self):
+        if not self.spell_cooldown or ( (
+            time.time() - self.spell_cooldown) > settings.DEFAULT_SPELL_COOLDOWN_TIME ):
             
-            shields_ready = True
+            spell_ready = True
         else:
-            shields_ready = False
+            spell_ready = False
 
-        return shields_ready
+        return spell_ready
         
-    def raise_shields(self):
+    def Spell_raise_shields(self):
         shields_raised = False
 
-        if self.check_shields_ready():
+        if self.check_spell_ready():
             self.animate = True
+            self.animate_repeat = True
             self.frozen = True
             self.invulnerable = True
-            self.shield_timer = time.time()
+            self.spell_timer = time.time()
             if self.snail_color:
-                self.set_frames(self.shield_frames)
+                self.set_frames(self.Spell_shield_frames)
                 self.load_frame(0)
-                self.fix_snail_frame()
+                self.fix_snail_pix()
                 self.animate = True
                 self.frame_wait = 1 / 10
                 self.frame_timer = time.time()
@@ -775,4 +795,116 @@ class Tank (cosmos.Celestial):
             shields_raised = True
 
         return shields_raised
+    
+    def check_spells(self, _tanks):
         
+        if len(self.effect_pixies) > 0:
+                for pixie in self.effect_pixies:
+                    pixie.animation()
+        
+        if self.invulnerable:
+            if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
+                self.invulnerable = False
+                self.frozen = False
+                self.spell_cooldown = time.time()
+                self.set_frames(self.walking_frames)
+                self.fix_snail_pix()
+                self.animate = False
+                self.animate_repeat = True
+                if not self.player_tank:
+                    self.pick_move_or_shoot(_tanks)
+        
+        if self.gravity_lowering:
+            for pixie in self.effect_pixies[:]:
+                if pixie.name.lower() == "gravity":
+                    if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
+                        self.effect_pixies.remove(pixie)
+                        self.gravity_lowering = False
+                        self.homeworld.mass = self.orig_homeworld_mass
+                        if not self.dying:
+                            self.frozen = False
+                        self.spell_cooldown = time.time()
+                        if not self.player_tank:
+                            self.pick_move_or_shoot(_tanks)
+                        
+        for pixie in self.effect_pixies:
+            if pixie.name.lower() == "gravity":
+                              
+                if self.gravity_rising:
+                    # increase mass
+                    self.homeworld.mass = self.orig_homeworld_mass + (
+                        settings.DEFAULT_GRAVITY_INCREASE - 1)*self.orig_homeworld_mass*(
+                            (time.time() - self.spell_timer)/settings.DEFAULT_SPELL_TIME )            
+                    # scale sprites
+                    pixie.screen_rad = self.homeworld.screen_rad*( 
+                        (time.time() - self.spell_timer)/settings.DEFAULT_SPELL_TIME )
+                    # pixie.scale_pix_to_body_circle()
+
+                    if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
+                        self.gravity_rising = False
+                        self.gravity_increased = True
+                        self.spell_timer = time.time()
+                
+                elif self.gravity_increased:
+                    if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
+                        self.heavy_mass = self.homeworld.mass
+                        self.gravity_increased = False
+                        self.gravity_lowering = True
+                        self.spell_timer = time.time()
+                
+                elif self.gravity_lowering:
+                    # decrease mass
+                    self.homeworld.mass = self.heavy_mass - (
+                        settings.DEFAULT_GRAVITY_INCREASE - 1)*self.orig_homeworld_mass*(
+                            (time.time() - self.spell_timer)/settings.DEFAULT_SPELL_TIME )            
+                    
+                    pixie.screen_rad = self.homeworld.screen_rad - self.homeworld.screen_rad*( 
+                        (time.time() - self.spell_timer)/settings.DEFAULT_SPELL_TIME )
+                
+                if self.dying:
+                    self.gravity_rising = False
+                    self.gravity_increased = False
+                    self.gravity_lowering = False
+                    self.homeworld.mass = self.orig_homeworld_mass
+                    
+        if self.dying:
+            if not self.first_death:
+                self.first_death = True
+                self.frozen = True
+                self.animate = True
+                self.animate_repeat = False
+                self.set_frames(self.dying_frames)
+                self.load_frame(0)
+                self.fix_snail_pix()
+                self.frame_wait = 1 / 10
+                self.frame_timer = time.time()
+
+                if self.gravity_rising or self.gravity_increased:
+                    self.gravity_rising = False
+                    self.gravity_increased = False
+                    self.gravity_lowering = True
+
+            elif self.animation_finished:
+                    self.dying = False
+                    self.active = False
+
+    def Spell_raise_gravity(self, _tanks):
+        can_cast_gravity = True
+
+        for _tank in _tanks:
+            if len(_tank.effect_pixies) > 0:
+                for spell in _tank.effect_pixies:
+                    if spell.name.lower() == "gravity":
+                        can_cast_gravity = False
+
+        if self.check_spell_ready() and can_cast_gravity:
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].set_frames(self.Spell_gravity_frames)
+            self.effect_pixies[-1].load_frame(0)
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = True
+            self.effect_pixies[-1].screen_rad = 0
+            self.effect_pixies[-1].name = "gravity"
+            self.gravity_rising = True
+            self.frozen = True
+            self.spell_timer = time.time()

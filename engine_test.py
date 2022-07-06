@@ -13,7 +13,7 @@ MainEngine = engine.Engine(MainSettings)
 MainEngine.create_homeworld()
 
 # create moons
-# MainEngine.create_moon()
+MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
@@ -36,8 +36,6 @@ while not MainEngine.game_over:
 
     MainEngine.create_universe()      
     MainEngine.draw_objects()
-        
-    MainEngine.manage_events(pygame.event.get())
 
     # MainEngine.meteor_shower()
 
@@ -47,12 +45,11 @@ while not MainEngine.game_over:
     MainEngine.time = 0
     while MainEngine.time < (MainEngine.sts.time_scale * MainEngine.sts.tres):
         
-        
         for body in MainEngine.celestials:
             body.move(MainEngine.celestials)
             for tank in MainEngine.tanks:
                 tank.check_smush(body)    
-            body.shatter(MainEngine.celestials, MainEngine.tanks)
+            # body.shatter(MainEngine.celestials, MainEngine.tanks)
             body.bounce_all(MainEngine.celestials)
                     
         cosmos.check_celestials(MainEngine.celestials)
@@ -74,7 +71,8 @@ while not MainEngine.game_over:
                     f"{tank.name} has been destroyed!", MainEngine.screen_rect.center, tank.color)
                 
         MainEngine.time += MainEngine.sts.tres
-        
+
+    MainEngine.manage_events(pygame.event.get())    
     # draw FPS to measure performance
     # if MainEngine.sts.debug:
     # if MainEngine.sts.debug:

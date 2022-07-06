@@ -597,7 +597,8 @@ class Tank (cosmos.Celestial):
         if self.target:
             if random.uniform(0, 1) < self.fire_weight:
                 if random.uniform(0,1) < self.spell_weight and self.check_spell_ready():
-                    self.Spell_raise_gravity(_tanks)
+                    if self.clear_skies():
+                        self.Spell_raise_gravity(_tanks)
                 else:
                     self.chamber_ball()
                     self.simple_target()
@@ -899,12 +900,24 @@ class Tank (cosmos.Celestial):
 
         if self.check_spell_ready() and can_cast_gravity:
             self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].screen_rad = 0
             self.effect_pixies[-1].set_frames(self.Spell_gravity_frames)
             self.effect_pixies[-1].load_frame(0)
             self.effect_pixies[-1].animate = True
             self.effect_pixies[-1].animate_repeat = True
-            self.effect_pixies[-1].screen_rad = 0
             self.effect_pixies[-1].name = "gravity"
             self.gravity_rising = True
             self.frozen = True
             self.spell_timer = time.time()
+
+    def clear_skies(self):
+        all_clear = True
+        for body in self.celestials:
+            if not body.homeworld:
+                vect = body.get_vect(self.homeworld.x, self.homeworld.y)
+                ang = math.atan2(vect[1], vect[0])
+                ang = abs(cosmos.angle_between(ang, self.pos_angle))
+                if ang < math.pi:
+                    all_clear = False
+
+        return all_clear

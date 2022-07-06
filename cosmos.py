@@ -616,7 +616,8 @@ class Celestial:
     def scale_pix_to_body_circle(self):
         """  Scales loaded sprite image to set screen's radius """
         if self.pix:
-            self.pix = pygame.transform.scale(self.pix, (2*self.screen_rad, 2*self.screen_rad))
+            self.pix = pygame.transform.scale(
+                self.pix, (int(2*self.screen_rad), int(2*self.screen_rad)) )
             # self.pix = pygame.transform.smoothscale(self.pix, (2*self.screen_rad, 2*self.screen_rad))
     
     # def scale_pix_rings(self):

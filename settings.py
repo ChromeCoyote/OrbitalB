@@ -169,8 +169,8 @@ SPELL_GRAVITY = pygame.K_g
 
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
-DEFAULT_AI_FIRE_WEIGHT = 0.5
-DEFAULT_AI_SPELL_WEIGHT = 0.2
+DEFAULT_AI_FIRE_WEIGHT = 0.8
+DEFAULT_AI_SPELL_WEIGHT = 0.8
 # How long in seconds that AI tank will wait to make an action to slow it down
 DEFAULT_AI_WAIT_TIME = 0
 # AI Tanks will avoid armed or exploding balls 
@@ -294,7 +294,7 @@ class Settings:
         self.crit_mass_ratio = DEFAULT_CRIT_MASS_RATIO
         self.crit_explode_mass = DEFAULT_CRIT_EXPLODE_MASS*1.01
 
-        self.meteor_shower = True
+        self.meteor_shower = False
         self.asteroid_chance = DEFAULT_ASTEROID_CHANCE
         
         # declaration of Surface object

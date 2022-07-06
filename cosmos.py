@@ -223,6 +223,8 @@ class Celestial:
         self.animate = False
         self.animate_repeat = False
         self.animation_finished = False
+        self.pix_rotate = False
+        self.pix_flip = [False, False]
         self.pix_offset_x = 0       
         self.pix_offset_y = 0
     
@@ -590,6 +592,10 @@ class Celestial:
             # Get PNG ready
             self.pix.convert_alpha()
             # scale the picture to set screen radius
+            if self.pix_flip[0] or self.pix_flip[1]:
+                self.flip_pix()
+            if self.pix_rotate:
+                self.rotate_pix(self.pix_rotate)            
             self.scale_pix_to_body_circle()
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.pix_path} loaded as pixie for {self.name} and scaled to body circle...")
@@ -675,26 +681,24 @@ class Celestial:
         if isinstance(self.pix_frames, list) and not self.animation_finished:
             if self.pix_frame < ( len(self.pix_frames) - 1):
                 self.pix_frame += 1
+                self.load_frame()
                 if self.pix_frame == ( len(self.pix_frames) - 1 ) and not self.animate_repeat:
                     self.animation_finished = True
             else:
                 self.pix_frame = 0
-            
-            self.pix = self.pix_frames[self.pix_frame]
-            self.scale_pix_to_body_circle()
+                self.load_frame()
                 
         # elif self.sts.debug:
         #     self.sts.write_to_log(
         #        f"ERROR in Cosmos.next_frame:  No list of pix frames defined for {self.name}.")
     
-    def load_frame(self, frame):
+    def load_frame(self):
         """ Load indicated frame from frame sprite list and scale it. """
-        if isinstance(self.pix_frames, list) and isinstance(frame, int):
-            self.pix_frame = frame
+        if isinstance(self.pix_frames, list) and isinstance(self.pix_frame, int):
             if self.pix_frame > ( len(self.pix_frames) - 1):
                 self.pix_frame = 0
             self.pix = self.pix_frames[self.pix_frame]
-            self.scale_pix_to_body_circle()
+            self.transform_pix()
             self.animation_finished = False
         elif self.sts.debug:
             self.sts.write_to_log(
@@ -718,12 +722,14 @@ class Celestial:
                 frame_file = os.path.normpath(frame_file)
                 if os.path.exists(frame_file):
                     self.pix_frames.append(pygame.image.load_extended(frame_file))
+                    self.pix_frames[-1].convert_alpha()
                     if self.sts.debug:
                         self.sts.write_to_log(f"Pix at {frame_file} loaded as frame for {self.name}...")
                 elif self.sts.debug:
                     self.sts.write_to_log(f"ERROR for {self.name}:  {frame_file} not found!")
             self.animate = True
-            self.load_frame(0)
+            self.pix_frame = 0
+            self.load_frame()
         else:
             self.pix_frames = False
             if self.sts.debug:
@@ -745,6 +751,7 @@ class Celestial:
                 frame_file = os.path.normpath(frame_file)
                 if os.path.exists(frame_file):
                     frames.append(pygame.image.load_extended(frame_file))
+                    frames[-1].convert_alpha()
                 elif self.sts.debug:
                     self.sts.write_to_log(
                         f"ERROR:  File {frame_file} not found using cosmos.load_frames_to() for {self.name}.")
@@ -759,18 +766,33 @@ class Celestial:
         """ Switch current set of frames to another given set. """
         if isinstance(frames, list):
             self.pix_frames = frames
-            self.load_frame(0)
+            self.pix_frame = 0
+            self.load_frame()
 
-    def rotate_pix(self, rads):
+    def transform_pix(self):
+        if self.pix_flip[0] or self.pix_flip[1]:
+                self.flip_pix()
+        self.scale_pix_to_body_circle()
+        if self.pix_rotate:
+            self.rotate_pix()
+
+    def rotate_pix(self):
         """ Rotate active sprite by given radians. """
         # Convert radians to degrees
-        deg_rot = rads * 180 / math.pi
+        deg_rot = self.pix_rotate * 180 / math.pi
         self.pix = pygame.transform.rotate(self.pix, deg_rot)
 
-    def flip_pix(self, flip_x, flip_y):
+    def flip_pix(self):
         """ Flip active sprite over x- and/or y-axis. """
-        self.pix = pygame.transform.flip(self.pix, flip_x, flip_y)
+        self.pix = pygame.transform.flip(self.pix, self.pix_flip[0], self.pix_flip[1])
 
+    def displace_pix(self, displace_mag, screen_xy):
+        displace_vector = numpy.subtract(
+            (self.screen_x, self.screen_y), (screen_xy[0], screen_xy[1]) )
+        displace_vector = numpy.multiply(displace_mag, normalize(displace_vector) )
+        self.pix_offset_x = int( displace_vector[0] )
+        self.pix_offset_y = int( displace_vector[1] )
+    
     def animation(self):
         if self.animate and isinstance(self.pix_frames, list) and not self.animation_finished:
             if ( time.time() - self.frame_timer) > self.frame_wait:

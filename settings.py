@@ -166,13 +166,14 @@ EJECT_BALL = pygame.K_BACKSLASH
 EXTI_MENU = pygame.K_ESCAPE
 SPELL_SHIELD = pygame.K_s
 SPELL_GRAVITY = pygame.K_g
+SPELL_ICE = pygame.K_i
 
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
 DEFAULT_AI_FIRE_WEIGHT = 0.8
 DEFAULT_AI_SPELL_WEIGHT = 0.8
 # How long in seconds that AI tank will wait to make an action to slow it down
-DEFAULT_AI_WAIT_TIME = 0
+DEFAULT_AI_WAIT_TIME = 1/8
 # AI Tanks will avoid armed or exploding balls 
 # this fraction of the homeworld's radius away
 DEFAULT_DANGER_RATIO = 0.2
@@ -198,10 +199,13 @@ SNAILS_PATH = "Pix/Snails"
 
 EXPLOSIONS_PATH = "Pix/Explosions"
 
+SPELLBOOK_PATH = "Pix/Magic/Spellbook"
+ICE_PATH = "Pix/Magic/Ice"
+
 DEFAULT_BALL_PIX_SCREEN_RAD = 10
 
-DEFAULT_SNAIL_SCREEN_RADIUS = 20
-DEFAULT_SNAIL_DISPLACEMENT_FACTOR = 0.2
+DEFAULT_SNAIL_SCREEN_RADIUS = 25
+DEFAULT_SNAIL_DISPLACEMENT_FACTOR = 0.25
 
 def rand_clr():
     """ Gets color of star based on galactic distribution """
@@ -271,7 +275,7 @@ class Settings:
         """Initialize the game's settings."""
         pygame.init()       # inialize pygame modules
 
-        self.debug = False   # debugging on for now...
+        self.debug = True   # debugging on for now...
 
          # Stuff for game log
         self.now = datetime.datetime.now()

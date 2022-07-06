@@ -22,7 +22,7 @@ MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-MainEngine.create_tank(False)
+MainEngine.create_tank(True)
 MainEngine.create_tank(False)
 MainEngine.create_tank(False)
 
@@ -57,6 +57,7 @@ while not MainEngine.game_over:
         MainEngine.center_homeworld()
         
         for tank in MainEngine.tanks:
+            tank.check_dying()
             tank.move_balls()
             tank.check_balls(MainEngine.tanks)
             tank.check_spells(MainEngine.tanks)

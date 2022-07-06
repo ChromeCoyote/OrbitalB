@@ -116,7 +116,7 @@ class Engine:
             y_on_screen = random.randint(0, self.celestials[-1].height)
             self.celestials[-1].place_on_screen(x_on_screen, y_on_screen)
             self.celestials[-1].set_v(-speed, 0)
-            asteroid_created = True
+            comet_created = True
             if self.celestials[-1].sts.debug:
                 self.sts.write_to_log(f"{self.celestials[-1].name} created!")
                 self.celestials[-1].write_values()
@@ -149,14 +149,16 @@ class Engine:
             self.tanks[-1].screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
             self.tanks[-1].load_snail_frames()
             self.tanks[-1].set_frames(self.tanks[-1].walking_frames)
-            self.tanks[-1].load_frame(0)
             
             for tank_ind in range(0, num_tanks):
                 self.tanks[tank_ind].pos_angle = tank_ind*(2*math.pi / num_tanks) + settings.DEFAULT_POSITION_ANGLE
                 self.tanks[tank_ind].get_surface_pos()
                 self.tanks[tank_ind].reset_default_launch()
                 self.tanks[tank_ind].fix_snail_pix()
+                self.tanks[tank_ind].transform_pix()
 
+            # self.tanks[-1].spell_cooldown = time.time()
+            
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.tanks[-1].name} successfully created!")        
             
@@ -216,6 +218,9 @@ class Engine:
                             tank.Spell_raise_shields()
                         elif event.key == tank.Spell_gravity:
                             tank.Spell_raise_gravity(self.tanks)
+                        elif event.key == tank.Spell_ice:
+                            tank.Spell_ice_counterspell(self.tanks)
+
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:
                 tank.make_choices(self.tanks)
@@ -262,8 +267,7 @@ class Engine:
         # Index 2:  message color
         # Index 3:  message add time
         self.messages.append( 
-            [mess_text, mess_location, mess_color, False ]
-        )
+            [mess_text, mess_location, mess_color, False ] )
     
     def set_game_message(self):
         """ Display ingame message """

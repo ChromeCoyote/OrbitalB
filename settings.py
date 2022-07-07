@@ -152,6 +152,9 @@ DEFAULT_SPELL_COOLDOWN_TIME = 10
 DEFAULT_SPELL_TIME = 3
 
 DEFAULT_GRAVITY_INCREASE = 10
+# Portal will be displaced 5 times the homeworld radius through the homeworld center
+# away from the tank
+DEFAULT_PORTAL_DISPLACEMENT = 5
 
 CHAMBER_BALL = pygame.K_RETURN
 FIRE_BALL = pygame.K_SPACE
@@ -167,13 +170,15 @@ EXTI_MENU = pygame.K_ESCAPE
 SPELL_SHIELD = pygame.K_s
 SPELL_GRAVITY = pygame.K_g
 SPELL_ICE = pygame.K_i
+SPELL_TELEPORT = pygame.K_t
+SPELL_METEOR = pygame.K_m
 
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
 DEFAULT_AI_FIRE_WEIGHT = 0.8
 DEFAULT_AI_SPELL_WEIGHT = 0.8
 # How long in seconds that AI tank will wait to make an action to slow it down
-DEFAULT_AI_WAIT_TIME = 1/8
+DEFAULT_AI_WAIT_TIME = 0
 # AI Tanks will avoid armed or exploding balls 
 # this fraction of the homeworld's radius away
 DEFAULT_DANGER_RATIO = 0.2
@@ -199,8 +204,14 @@ SNAILS_PATH = "Pix/Snails"
 
 EXPLOSIONS_PATH = "Pix/Explosions"
 
+SHIELD_PATH = "Spells/Shield"
+GRAVITY_PATH = "Spells/Gravity"
 SPELLBOOK_PATH = "Pix/Magic/Spellbook"
 ICE_PATH = "Pix/Magic/Ice"
+TELEPORT_PATH = "Pix/Magic/Teleport"
+METEOR_PATH = "Spells/Meteor"
+
+SPELLREADY_ICON_PATH = "Spells/Spellready_Icon/spellready.png"
 
 DEFAULT_BALL_PIX_SCREEN_RAD = 10
 

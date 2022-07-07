@@ -131,7 +131,6 @@ def break_celestial(broke_body, celestials, break_plane):
         # If original celestial had a sprite, copy it and rescale it.
         if broke_body.pix:
             celestials[-1].load_pix(broke_body.pix_path)
-            celestials[-1].scale_pix_to_body_circle()
         if broke_body.sts.debug:
             broke_body.sts.write_to_log(f"{celestials[-1].name} has been created by another...")
             celestials[-1].write_values()
@@ -479,7 +478,6 @@ class Celestial:
             if self.pix:
                 celestials[-1].load_pix(self.pix_path)
                 # settings.random_pix_transform(celestials[-1].pix)
-                celestials[-1].scale_pix_to_body_circle()
             if self.sts.debug:
                 self.sts.write_to_log(f"{celestials[-1].name} has been created by {self.name}...")
                 celestials[-1].write_values()
@@ -591,20 +589,43 @@ class Celestial:
             self.pix = pygame.image.load_extended(self.pix_path)
             # Get PNG ready
             self.pix.convert_alpha()
+            self.transform_pix()
             # scale the picture to set screen radius
-            if self.pix_flip[0] or self.pix_flip[1]:
-                self.flip_pix()
-            if self.pix_rotate:
-                self.rotate_pix(self.pix_rotate)            
-            self.scale_pix_to_body_circle()
             if self.sts.debug:
-                self.sts.write_to_log(f"{self.pix_path} loaded as pixie for {self.name} and scaled to body circle...")
+                self.sts.write_to_log(f"{self.pix_path} loaded as pixie for {self.name}...")
         else:
             self.pix_path = False
             if self.sts.debug:
                 self.sts.write_to_log(f"ERROR loading {self.pix_path} for {self.name}:  file doesn't exist!")
    
         return load_success
+
+    def load_pix_to(self, path_to_pix):
+        """  Load a single sprite from given path to a particular variable.  """
+    
+        # error checking
+        if isinstance(path_to_pix, str):
+            pix_path = os.path.normpath(path_to_pix)
+            load_success = os.path.exists(pix_path)
+        else:
+            load_success = False
+            return_pix = False
+            if self.sts.debug:
+                self.sts.write_to_log(f"ERROR using load_pix_to() for {self.name}  Invalid path format (is it a string?)")
+        if load_success:
+            # load imaged at path to self's sprite variable.
+            return_pix = pygame.image.load_extended(pix_path)
+            # Get PNG ready
+            return_pix.convert_alpha()
+            # scale the picture to set screen radius
+            if self.sts.debug:
+                self.sts.write_to_log(f"{pix_path} returned as pixie for {self.name}...")
+        else:
+            return_pix = False
+            if self.sts.debug:
+                self.sts.write_to_log(f"ERROR loading {pix_path} for {self.name} to destination:  file doesn't exist!")
+
+        return return_pix
 
     # def load_rings(self, rings_path):
     #    rings_path = os.path.normpath(rings_path)

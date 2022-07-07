@@ -82,6 +82,7 @@ while not MainEngine.game_over:
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
         MainEngine.tanks[0].winner = True
+        MainEngine.tanks[0].remove_effect_pixie("spellready icon")
         MainEngine.game_over = True
     elif not MainEngine.tanks:
         MainEngine.game_over = True
@@ -89,7 +90,7 @@ while not MainEngine.game_over:
     pygame.display.flip()
 
 # ENDGAME SCREEN *******************************************
-# MainEngine.endgame_screen()
+MainEngine.endgame_screen()
 if MainEngine.sts.debug:
     MainEngine.sts.write_to_log("Exiting game outside of main loop and writing log file...")
     MainEngine.sts.output_log_to_file()

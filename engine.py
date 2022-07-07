@@ -155,6 +155,7 @@ class Engine:
                 self.tanks[tank_ind].get_surface_pos()
                 self.tanks[tank_ind].reset_default_launch()
                 self.tanks[tank_ind].fix_snail_pix()
+                self.tanks[tank_ind].load_frame()
                 self.tanks[tank_ind].transform_pix()
 
             # self.tanks[-1].spell_cooldown = time.time()
@@ -220,6 +221,10 @@ class Engine:
                             tank.Spell_raise_gravity(self.tanks)
                         elif event.key == tank.Spell_ice:
                             tank.Spell_ice_counterspell(self.tanks)
+                        elif event.key == tank.Spell_teleport:
+                            tank.Spell_teleport_snail()
+                        elif event.key == tank.Spell_meteor:
+                            tank.Spell_meteor_portal(self.tanks)
 
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:
@@ -338,10 +343,23 @@ class Engine:
     def endgame_screen(self):
         wait4me = True
 
+        self.set_font_size(48)
+        if self.tanks and self.tanks[0].winner:
+            self.add_message(
+                f"{self.tanks[0].name} wins!", self.screen_rect.center, self.tanks[0].color)
+            game_over_color = self.tanks[0].color
+        elif not self.tanks:
+            self.add_message(
+                "All tanks destroyed!", self.screen_rect.center, settings.DEFAULT_FONT_COLOR)
+            game_over_color = settings.DEFAULT_FONT_COLOR
+        self.set_font_size(64)
+        self.add_message("GAME OVER", self.screen_rect.center, game_over_color)
+
         while wait4me:
             self.ticktock()
 
             self.create_universe()
+            self.draw_objects()
 
             events = pygame.event.get()
             for event in events:
@@ -355,25 +373,10 @@ class Engine:
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
                     wait4me = False
-
-            self.set_font_size(48)
-            if self.tanks and self.tanks[0].winner:
-                    for ball in self.tanks[0].balls:
-                        if ball.exploding:
-                            ball.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
-
-                    self.draw_objects()
-                
-                    self.display_game_message(
-                            f"{self.tanks[0].name} wins!", self.screen_rect.center, self.tanks[0].color)
-            elif not self.tanks:
-                self.draw_objects()
-                self.display_game_message(
-                        "All tanks destroyed!", self.screen_rect.center, settings.DEFAULT_FONT_COLOR)
-
-            self.set_font_size(64)
-            self.display_game_message(
-                    f"GAME OVER", self.screen_rect.midbottom, (random.randint(0,255), random.randint(0,255), random.randint(0,255)))
+            
+            if len(self.messages) == 0:
+                wait4me = False
+            
             pygame.display.flip()
                     
         if self.sts.debug:

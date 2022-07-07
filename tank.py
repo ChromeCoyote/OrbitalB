@@ -1,6 +1,6 @@
 # Code for projectile
 
-import pygame, math, random, numpy, time, os, copy
+import pygame, math, random, numpy, time, os
 import settings, cosmos
 
 def check_tanks(tanks, _settings):
@@ -104,6 +104,7 @@ class Tank (cosmos.Celestial):
         self.spell_cooldown = False
         self.spell_timer = False
         self.spell_active = False
+        self.spellready_pix = False
 
         # for shield spell
         self.invulnerable = False
@@ -116,6 +117,12 @@ class Tank (cosmos.Celestial):
         
         # for ice spell
         self.Spell_ice_frames = [False, False]
+
+        # for teleport spell
+        self.Spell_teleport_frames = False
+
+        # for meteor spell
+        self.Spell_meteor_frames = [False, False, False]
         
         self.snail_color = False
         self.walking_frames = False
@@ -140,6 +147,8 @@ class Tank (cosmos.Celestial):
         self.Spell_shield = settings.SPELL_SHIELD
         self.Spell_gravity = settings.SPELL_GRAVITY
         self.Spell_ice = settings.SPELL_ICE
+        self.Spell_teleport = settings.SPELL_TELEPORT
+        self.Spell_meteor = settings.SPELL_METEOR
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -522,7 +531,16 @@ class Tank (cosmos.Celestial):
         elif self.check_for_danger(_tanks):
             self.eject_ball()
             if self.check_spell_ready():
-                self.Spell_raise_shields()
+                old_pos = self.pos_angle
+                self.pos_angle += math.pi
+                self.get_surface_pos()
+                danger_over_there = self.check_for_danger(_tanks)
+                self.pos_angle = old_pos
+                self.get_surface_pos()
+                if not danger_over_there:
+                    self.Spell_teleport_snail()
+                else:
+                    self.Spell_raise_shields()
         elif self.targeting:
             if self.sts.debug and not angle_ready:
                 self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
@@ -600,12 +618,18 @@ class Tank (cosmos.Celestial):
         self.pick_target(_tanks)
         if self.target:
             if random.uniform(0, 1) < self.fire_weight:
-                if random.uniform(0,1) < self.spell_weight and self.check_spell_ready():
-                    if self.clear_skies(_tanks):
+                if random.uniform(0, 1) < self.spell_weight and self.check_spell_ready():
+                    
+                    for _tank in _tanks:
+                        if _tank.name != self.name and (_tank.check_for_danger(_tanks) or _tank.spell_active):
+                                self.Spell_ice_counterspell(_tanks)
+                                break                       
+                    if self.check_spell_ready() and self.clear_skies(_tanks):
                         if self.sts.debug:
                             self.sts.write_to_log(
                                 f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
                         self.Spell_raise_gravity(_tanks)
+                            
                 else:
                     self.chamber_ball()
                     self.simple_target()
@@ -731,18 +755,27 @@ class Tank (cosmos.Celestial):
             
             # Load Spell frames
             self.Spell_shield_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Spells/Shield"))
+                os.path.join(path_to_frames, settings.SHIELD_PATH))
             self.Spell_gravity_frames = self.load_frames_to(
-                os.path.join(path_to_frames, "Spells/Gravity") )
+                os.path.join(path_to_frames, settings.GRAVITY_PATH) )
             self.Spell_ice_frames[0] = self.load_frames_to(
                 os.path.join(settings.ICE_PATH, "Form") )
             self.Spell_ice_frames[1] = self.load_frames_to(
                 os.path.join(settings.ICE_PATH, "Break") )
-            
-            # Spellbook animation frames
+            self.Spell_teleport_frames = self.load_frames_to(
+                settings.TELEPORT_PATH)
+            self.Spell_meteor_frames[0] = self.load_frames_to(
+                os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Opening") )
+            self.Spell_meteor_frames[1] = self.load_frames_to(
+                os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Steady") )
+            self.Spell_meteor_frames[2] = self.load_frames_to(
+                os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Closing") )
             self.spellbook_frames = self.load_frames_to(
                 settings.SPELLBOOK_PATH)
-            
+
+            # Spellready icon
+            self.spellready_pix = self.load_pix_to(
+                os.path.join(path_to_frames, settings.SPELLREADY_ICON_PATH) )         
             
     def fix_snail_pix(self):
         self.pix_flip = [self.moving_CW, False]
@@ -782,24 +815,27 @@ class Tank (cosmos.Celestial):
 
     def check_spell_ready(self):
         
-        if not self.spell_cooldown or self.spell_active or ( (
-            time.time() - self.spell_cooldown) > settings.DEFAULT_SPELL_COOLDOWN_TIME ):
-            
+        cooled_down = True
+        if self.spell_cooldown:
+            cooldown_time = time.time() - self.spell_cooldown
+            if cooldown_time < settings.DEFAULT_SPELL_COOLDOWN_TIME:
+                cooled_down = False
+        if not self.spell_active and cooled_down:
             spell_ready = True
-
         else:
-            
             spell_ready = False
-
         return spell_ready
         
     def check_spells(self, _tanks):
         
         pixies_to_remove = []
-
+        
         if len(self.effect_pixies) > 0:
-                for pixie in self.effect_pixies:
-                    pixie.animation()
+            for pixie in self.effect_pixies:
+                pixie.animation()
+        
+        if self.check_spell_ready() and not self.pixie_exists("spellready icon"):
+            self.show_spellready_icon(_tanks)
 
         # Special case for shields:
         if self.invulnerable:
@@ -812,7 +848,6 @@ class Tank (cosmos.Celestial):
                 self.fix_snail_pix()
                 self.animate = False
                 self.animate_repeat = True
-                
                 self.spell_cooldown = time.time()
                 if not self.player_tank:
                     self.pick_move_or_shoot(_tanks)
@@ -857,14 +892,14 @@ class Tank (cosmos.Celestial):
                             if not self.dying:
                                 self.frozen = False
                             self.remove_effect_pixie("spellbook")
-                            self.spell_cooldown = time.time()
+                            # Using gravity to completion takes extra cooldown time (x3)
+                            self.spell_cooldown = time.time() + 2*settings.DEFAULT_SPELL_COOLDOWN_TIME
                             self.spell_active = False
                             if not self.player_tank:
                                 self.pick_move_or_shoot(_tanks)
 
                 else:
                     self.homeworld.mass = self.orig_homeworld_mass
-                  
                     pixie.screen_rad -= self.homeworld.screen_rad*0.01
                     if pixie.screen_rad < 0:
                         pixie.screen_rad = 0
@@ -876,6 +911,50 @@ class Tank (cosmos.Celestial):
                             if not self.player_tank:
                                 self.pick_move_or_shoot(_tanks)
         
+            elif "portal" in pixie.name.lower():
+                if self.spell_active:
+                    if pixie.name.lower() == "portal-opening" and pixie.animation_finished:
+                        pixie.name = "portal-steady"
+                        pixie.animate_repeat = True
+                        pixie.set_frames(self.Spell_meteor_frames[1])
+                        self.spell_timer = time.time()
+                    
+                    elif pixie.name.lower() == "portal-steady":
+                        # spell effect here
+                        if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
+                            pixie.name = "portal-closing"
+                            pixie.animate_repeat = False
+                            pixie.set_frames(self.Spell_meteor_frames[2])
+                    
+                    elif pixie.name.lower() == "portal-closing" and pixie.animation_finished:
+                        pixies_to_remove.append(pixie)
+                        if not self.dying:
+                            self.frozen = False
+                        self.remove_effect_pixie("spellbook")
+                        # Using meteor to completion takes extra cooldown time (x2)
+                        self.spell_cooldown = time.time() + settings.DEFAULT_SPELL_COOLDOWN_TIME
+                        self.spell_active = False
+                        if not self.player_tank:
+                            self.pick_move_or_shoot(_tanks)
+                else:
+                    pixie.frame_wait = 1/60 
+                    if pixie.name == "portal-opening" and pixie.animation_finished:
+                        pixie.name = "portal-closing"
+                        pixie.set_frames(self.Spell_meteor_frames[2])
+                    elif pixie.name == "portal-steady":
+                        pixie.animate_repeat = False
+                        pixie.name = "portal-closing"
+                        pixie.set_frames(self.Spell_meteor_frames[2])
+                    elif pixie.name == "portal-closing" and pixie.animation_finished:
+                        pixies_to_remove.append(pixie)
+                        self.spell_cooldown = time.time()
+                        self.remove_effect_pixie("spellbook")
+                        self.remove_effect_pixie("spellready icon")
+                        if not self.dying:
+                            self.frozen = False
+                            if not self.player_tank:
+                                self.pick_move_or_shoot(_tanks)
+
             elif "ice" in pixie.name.lower():
                 if self.spell_active:
                     for _tank in _tanks:
@@ -886,8 +965,7 @@ class Tank (cosmos.Celestial):
                         for _tank in _tanks:
                             if _tank.name in pixie.name:
                                 _tank.frozen = False
-                                pixie.name = f"{_tank.name} thawing"
-                        
+                        pixie.name = "thawing"
                         pixie.set_frames(self.Spell_ice_frames[1])
                         pixie.frame_wait = 1/10
                         if not self.pixie_exists("ice"):
@@ -902,7 +980,7 @@ class Tank (cosmos.Celestial):
                     for _tank in _tanks:
                         if _tank.name in pixie.name:
                             _tank.frozen = False
-                            pixie.name = f"{_tank.name} thawing"
+                    pixie.name = "thawing"
                     pixie.set_frames(self.Spell_ice_frames[1])
                     pixie.frame_wait = 1/60
                     self.spell_cooldown = time.time()
@@ -911,9 +989,23 @@ class Tank (cosmos.Celestial):
                         self.frozen = False
                         if not self.player_tank:
                             self.pick_move_or_shoot(_tanks) 
-            elif "thawing" in pixie.name.lower():
+            elif pixie.name.lower() == "thawing":
                 if pixie.animation_finished:
                     pixies_to_remove.append(pixie)
+            elif "teleport" in pixie.name.lower():
+                if pixie.animation_finished:
+                    pixies_to_remove.append(pixie)
+            elif pixie.name.lower() == "spellready icon":
+                
+                tank_count = 0
+                tank_no = -1
+                for _tank in _tanks:
+                    tank_count += 1
+                    if _tank.name == self.name:
+                        tank_no = tank_count   
+                
+                pixie.screen_x = 2*self.screen_rad
+                pixie.screen_y = self.height - (tank_no*self.screen_rad) - self.screen_rad
 
         # Clean up dead spells and effects:
         for pixie in pixies_to_remove:
@@ -947,6 +1039,8 @@ class Tank (cosmos.Celestial):
             self.frozen = True
             self.invulnerable = True
             self.spell_active = True
+            self.remove_effect_pixie("spellready icon")
+            
             if self.snail_color:
                 self.set_frames(self.Spell_shield_frames)
                 self.fix_snail_pix()
@@ -977,8 +1071,45 @@ class Tank (cosmos.Celestial):
             self.effect_pixies[-1].animate_repeat = True
             self.effect_pixies[-1].name = "gravity-rising"
             self.spell_active = True
+            self.remove_effect_pixie("spellready icon")
             self.frozen = True
             self.spell_timer = time.time()
+            self.read_spellbook()
+
+    def Spell_meteor_portal(self, _tanks):
+        can_cast_meteor = True
+
+        for _tank in _tanks:
+            if len(_tank.effect_pixies) > 0:
+                for spell in _tank.effect_pixies:
+                    if "portal" in spell.name.lower():
+                        can_cast_meteor = False
+        
+        if self.check_spell_ready() and can_cast_meteor:
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].screen_rad = self.homeworld.screen_rad*1.5
+            self.effect_pixies[-1].set_frames(self.Spell_meteor_frames[0])
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
+            self.effect_pixies[-1].frame_wait = 1/30
+            self.effect_pixies[-1].name = "portal-opening"
+            self.effect_pixies[-1].x = self.x
+            self.effect_pixies[-1].y = self.y
+
+            # displace portal away from homeworld
+            dist_vect = self.effect_pixies[-1].get_vect(self.homeworld.x, self.homeworld.y)
+            dist_vect = numpy.multiply(50*self.sts.rad_scale, dist_vect)
+            (self.effect_pixies[-1].x, self.effect_pixies[-1].y) = numpy.add(
+                 (self.effect_pixies[-1].x, self.effect_pixies[-1].y), dist_vect )
+
+            self.effect_pixies[-1].get_screenxy()
+            self.effect_pixies[-1].pix_rotate = self.pix_rotate + math.pi/2
+            # self.effect_pixies[-1].displace_pix(
+            #    self.homeworld.screen_rad, (self.homeworld.screen_x, self.homeworld.screen_y) )
+            
+            self.spell_active = True
+            self.remove_effect_pixie("spellready icon")
+            self.frozen = True
             self.read_spellbook()
 
     def Spell_ice_counterspell(self, _tanks):
@@ -1006,17 +1137,71 @@ class Tank (cosmos.Celestial):
 
             self.frozen = True
             self.spell_active = True
+            self.remove_effect_pixie("spellready icon")
             self.read_spellbook()
             self.spell_timer = time.time()
+
+    def Spell_teleport_snail(self):
+
+        if self.check_spell_ready():
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].name = f"{self.name}'s origin teleport puff"
+            self.effect_pixies[-1].pix_rotate = self.pix_rotate
+            self.effect_pixies[-1].screen_x = self.screen_x
+            self.effect_pixies[-1].screen_y = self.screen_y
+            self.effect_pixies[-1].displace_pix(
+                self.screen_displacement, (self.homeworld.screen_x, self.homeworld.screen_y) )
+            self.effect_pixies[-1].screen_rad = self.screen_rad
+            self.effect_pixies[-1].frame_wait = 1/30
+            self.effect_pixies[-1].frame_timer = time.time()        
+            self.effect_pixies[-1].set_frames(self.Spell_teleport_frames)
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
+
+            self.pos_angle += math.pi
+            
+            if self.moving_CW:
+                self.moving_CW = False
+            else:
+                self.moving_CW = True
+
+            self.get_surface_pos()
+            self.reset_default_launch()
+            self.fix_snail_pix()
+            self.transform_pix()
+            self.load_frame()
+
+            self.spell_cooldown = time.time()
+            self.remove_effect_pixie("spellready icon")
+
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].name = f"{self.name}'s destination teleport puff"
+            self.effect_pixies[-1].pix_rotate = self.pix_rotate
+            self.effect_pixies[-1].screen_x = self.screen_x
+            self.effect_pixies[-1].screen_y = self.screen_y
+            self.effect_pixies[-1].displace_pix(
+                self.screen_displacement, (self.homeworld.screen_x, self.homeworld.screen_y) )
+            self.effect_pixies[-1].screen_rad = self.screen_rad
+            self.effect_pixies[-1].frame_wait = 1/30
+            self.effect_pixies[-1].frame_timer = time.time()        
+            self.effect_pixies[-1].set_frames(self.Spell_teleport_frames)
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
 
     def remove_effect_pixie(self, pixie_to_remove):
         removed = False        
         if isinstance(pixie_to_remove, str) and len(self.effect_pixies) > 0:
-            for pixie in self.effect_pixies:
+            for pixie in self.effect_pixies[:]:
                 if pixie.name.lower() == pixie_to_remove.lower():
                     self.effect_pixies.remove(pixie)
-                    removed = True
-
+                    removed = not self.pixie_exists(pixie_to_remove)
+                    if self.sts.debug:
+                        if removed:
+                            self.sts.write_to_log(
+                                f"Successfully removed {pixie_to_remove} from {self.name}'s effect list!")
+                        else:
+                            self.sts.write_to_log(
+                                f"ERROR:  failed to remove {pixie_to_remove} from {self.name}'s effect list!")
         return removed
     
     def pixie_exists(self, pixie_to_find):
@@ -1042,6 +1227,14 @@ class Tank (cosmos.Celestial):
         self.effect_pixies[-1].set_frames(self.spellbook_frames)
         self.effect_pixies[-1].animate = True
         self.effect_pixies[-1].animate_repeat = True
+
+    def show_spellready_icon(self, _tanks):
+        if not self.pixie_exists("spellready icon"):
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].name = "spellready icon"
+            self.effect_pixies[-1].screen_rad = self.screen_rad
+            self.effect_pixies[-1].pix = self.spellready_pix
+            self.effect_pixies[-1].transform_pix()
            
     def clear_skies(self, _tanks):
         all_clear = True

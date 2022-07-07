@@ -112,9 +112,6 @@ class Tank (cosmos.Celestial):
         # for gravity spell
         self.orig_homeworld_mass = self.homeworld.mass
         self.heavy_mass = self.homeworld.mass
-        self.gravity_rising = False
-        self.gravity_increased = False
-        self.gravity_lowering = False
         self.Spell_gravity_frames = False
         
         # for ice spell
@@ -609,7 +606,6 @@ class Tank (cosmos.Celestial):
                             self.sts.write_to_log(
                                 f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
                         self.Spell_raise_gravity(_tanks)
-
                 else:
                     self.chamber_ball()
                     self.simple_target()
@@ -823,10 +819,10 @@ class Tank (cosmos.Celestial):
 
         for pixie in self.effect_pixies:
             # For gravity spell...
-            if pixie.name.lower() == "gravity":
+            if "gravity" in pixie.name.lower():
                               
                 if self.spell_active:
-                    if self.gravity_rising:
+                    if pixie.name.lower() == "gravity-rising":
                         # increase mass
                         self.homeworld.mass = self.orig_homeworld_mass + (
                             settings.DEFAULT_GRAVITY_INCREASE - 1)*self.orig_homeworld_mass*(
@@ -837,18 +833,16 @@ class Tank (cosmos.Celestial):
                         # pixie.scale_pix_to_body_circle()
 
                         if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
-                            self.gravity_rising = False
-                            self.gravity_increased = True
+                            pixie.name = "gravity-steady"
                             self.spell_timer = time.time()
                     
-                    elif self.gravity_increased:
+                    elif pixie.name.lower() == "gravity-steady":
                         if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
                             self.heavy_mass = self.homeworld.mass
-                            self.gravity_increased = False
-                            self.gravity_lowering = True
+                            pixie.name = "gravity-lowering"
                             self.spell_timer = time.time()
                     
-                    elif self.gravity_lowering:
+                    elif pixie.name.lower() == "gravity-lowering":
                         # decrease mass
                         self.homeworld.mass = self.heavy_mass - (
                             settings.DEFAULT_GRAVITY_INCREASE - 1)*self.orig_homeworld_mass*(
@@ -859,7 +853,6 @@ class Tank (cosmos.Celestial):
 
                         if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
                             pixies_to_remove.append(pixie)
-                            self.gravity_lowering = False
                             self.homeworld.mass = self.orig_homeworld_mass
                             if not self.dying:
                                 self.frozen = False
@@ -871,22 +864,18 @@ class Tank (cosmos.Celestial):
 
                 else:
                     self.homeworld.mass = self.orig_homeworld_mass
-                    
-                    if self.gravity_rising or self.gravity_increased:
-                        self.gravity_rising = False
-                        self.gravity_increased = False
-                        self.gravity_lowering = True
-                    if self.gravity_lowering:
-                        pixie.screen_rad -= self.homeworld.screen_rad*0.01
-                        if pixie.screen_rad < 0:
-                            pixie.screen_rad = 0
-                            pixies_to_remove.append(pixie)
-                            self.spell_cooldown = time.time()
-                            self.remove_effect_pixie("spellbook")
-                            if not self.dying:
-                                self.frozen = False
-                                if not self.player_tank:
-                                    self.pick_move_or_shoot(_tanks)
+                  
+                    pixie.screen_rad -= self.homeworld.screen_rad*0.01
+                    if pixie.screen_rad < 0:
+                        pixie.screen_rad = 0
+                        pixies_to_remove.append(pixie)
+                        self.spell_cooldown = time.time()
+                        self.remove_effect_pixie("spellbook")
+                        if not self.dying:
+                            self.frozen = False
+                            if not self.player_tank:
+                                self.pick_move_or_shoot(_tanks)
+        
             elif "ice" in pixie.name.lower():
                 if self.spell_active:
                     for _tank in _tanks:
@@ -977,7 +966,7 @@ class Tank (cosmos.Celestial):
         for _tank in _tanks:
             if len(_tank.effect_pixies) > 0:
                 for spell in _tank.effect_pixies:
-                    if spell.name.lower() == "gravity":
+                    if "gravity" in spell.name.lower():
                         can_cast_gravity = False
 
         if self.check_spell_ready() and can_cast_gravity:
@@ -986,9 +975,8 @@ class Tank (cosmos.Celestial):
             self.effect_pixies[-1].set_frames(self.Spell_gravity_frames)
             self.effect_pixies[-1].animate = True
             self.effect_pixies[-1].animate_repeat = True
-            self.effect_pixies[-1].name = "gravity"
+            self.effect_pixies[-1].name = "gravity-rising"
             self.spell_active = True
-            self.gravity_rising = True
             self.frozen = True
             self.spell_timer = time.time()
             self.read_spellbook()

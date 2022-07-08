@@ -75,10 +75,9 @@ while not MainEngine.game_over:
 
     MainEngine.manage_events(pygame.event.get())    
     # draw FPS to measure performance
-    # if MainEngine.sts.debug:
-    # if MainEngine.sts.debug:
-        # MainEngine.display_game_message(
-            # f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR)   
+    if MainEngine.sts.debug:
+        MainEngine.display_temp_text(
+            (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR) )   
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
         MainEngine.tanks[0].winner = True

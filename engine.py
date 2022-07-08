@@ -34,6 +34,9 @@ class Engine:
         self.screen_message = False
         self.message_rect = False
 
+        if self.sts.sound_on:
+            self.sts.load_sounds()
+
     def set_font_size(self, new_font_size):
         self.font = pygame.font.SysFont(None, new_font_size)
     
@@ -203,6 +206,10 @@ class Engine:
                             tank.Spell_teleport_snail()
                         elif event.key == tank.Spell_meteor:
                             tank.Spell_meteor_portal(self.tanks)
+                        elif event.key == tank.Spell_clone:
+                            tank.Spell_clone_cannonball()
+                        elif event.key == tank.Spell_big_ball:
+                            tank.Spell_big_cannonball()
 
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:
@@ -292,8 +299,9 @@ class Engine:
             self.message_rect.center = self.messages[0][1]
         else:
             self.message_rect.center = self.screen_rect.center
-            self.sts.write_to_log(
-                "ERROR:  Invalid text location in self.messages[0] for Engine.set_game_message()")
+            if self.sts.debug:
+                self.sts.write_to_log(
+                    "ERROR:  Invalid text location in self.messages[0] for Engine.set_game_message()")
         
     def display_game_message(self):
         if isinstance(self.messages, list):
@@ -307,6 +315,46 @@ class Engine:
                 else:
                     self.sts.screen.blit(self.screen_message, self.message_rect)   
 
+    def display_temp_text(self, message):
+        temp_text = pygame.font.Font.render(
+            self.font, message[0], True, message[2])
+        temp_rect = temp_text.get_rect()
+
+        if message[1] == self.screen_rect.top:
+            temp_rect.top = message[1]
+        elif message[1] == self.screen_rect.left:
+            temp_rect.left = message[1]
+        elif message[1] == self.screen_rect.bottom:
+            temp_rect.bottom = message[1]
+        elif message[1] == self.screen_rect.right:
+            temp_rect.right = message[1]
+        elif message[1] == self.screen_rect.topleft:
+            temp_rect.topleft = message[1]
+        elif message[1] == self.screen_rect.bottomleft:
+            temp_rect.bottomleft = message[1]
+        elif message[1] == self.screen_rect.topright:
+            temp_rect.topright = message[1]
+        elif message[1] == self.screen_rect.bottomright:
+            temp_rect.bottomright = message[1]
+        elif message[1] == self.screen_rect.midtop:
+            temp_rect.midtop = message[1]
+        elif message[1] == self.screen_rect.midleft:
+            temp_rect.midleft = message[1]
+        elif message[1] == self.screen_rect.midbottom:
+            temp_rect.midbottom = message[1]
+        elif message[1] == self.screen_rect.midright:
+            temp_rect.midright = message[1]
+        elif message[1] == self.screen_rect.center:
+            temp_rect.center = message[1]
+        else:
+            temp_rect.center = self.screen_rect.center
+            if self.sts.debug:
+                self.sts.write_to_log(
+                "ERROR:  Invalid text location sent to Engine.display_temp_text()")
+        
+        self.sts.screen.blit(temp_text, temp_rect)
+
+    
     def center_homeworld(self):
         if self.celestials[0].x or self.celestials[0].y:
             self.displacement = numpy.multiply(

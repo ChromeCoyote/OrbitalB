@@ -105,6 +105,7 @@ class Tank (cosmos.Celestial):
         self.spell_timer = False
         self.spell_active = False
         self.spellready_pix = False
+        self.scroll_pix = False
 
         # for shield spell
         self.invulnerable = False
@@ -123,6 +124,9 @@ class Tank (cosmos.Celestial):
 
         # for meteor spell
         self.Spell_meteor_frames = [False, False, False]
+
+        # for clone spell
+        self.Spell_clone_frames = False
         
         self.snail_color = False
         self.walking_frames = False
@@ -149,6 +153,8 @@ class Tank (cosmos.Celestial):
         self.Spell_ice = settings.SPELL_ICE
         self.Spell_teleport = settings.SPELL_TELEPORT
         self.Spell_meteor = settings.SPELL_METEOR
+        self.Spell_clone = settings.SPELL_CLONE
+        self.Spell_big_ball = settings.SPELL_BIG_BALL
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -287,6 +293,8 @@ class Tank (cosmos.Celestial):
     def eject_ball(self):
         found_chambered_ball = self.find_chambered_ball()
         if found_chambered_ball:
+            if "-big" in found_chambered_ball.name.lower():
+                self.spell_cooldown = False
             self.balls.remove(found_chambered_ball)
             self.chambered_ball = False
             self.targeting = False
@@ -311,6 +319,9 @@ class Tank (cosmos.Celestial):
             
             self.targeting = False
             fire = True
+
+            if self.sts.sound_on:
+                self.sts.sounds["cannonball-fire"].play()
         
         return fire
 
@@ -331,10 +342,16 @@ class Tank (cosmos.Celestial):
                     if ( time.time() - ball.fuse_start ) > settings.DEFAULT_FUSE_TIME:
                         ball.armed = True
                         ball.animate = True
-                        ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD
+                        if "-big" in ball.name.lower():
+                            ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD * \
+                                settings.DEFAULT_BIG_BALL_GROWTH
+                        else:
+                            ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD
                         ball.pix_frame = 0
                         ball.load_frame()
                         ball.frame_timer = time.time()
+                        if self.sts.sound_on:
+                            self.sts.sounds["cannonball-armed"].play()
             
                         # if not ball.animate:
                         #    ball.color = settings.DEFAULT_ARMED_COLOR
@@ -598,10 +615,16 @@ class Tank (cosmos.Celestial):
             else:
                 danger_angle = math.atan2(danger_ball.y, danger_ball.x)
                 angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
+                
+                step_away = settings.DEFAULT_STEP_AWAY_RAD
+                if "-big" in danger_ball.name.lower():
+                    step_away *= 2
+
                 if angle_between > 0:
-                    self.pos_target = danger_angle - math.pi/8
+                    self.pos_target = danger_angle - step_away
                 else:
-                    self.pos_target = danger_angle + math.pi/8
+                    self.pos_target = danger_angle + step_away
+        
         elif danger_body:
             if self.check_spell_ready():
                 old_pos = self.pos_angle
@@ -649,7 +672,10 @@ class Tank (cosmos.Celestial):
                         elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
                             not self.check_for_danger(_tanks):
                                 self.Spell_meteor_portal(_tanks)
-                                break                       
+                                break
+                        elif self.find_first_armed_ball():
+                                self.Spell_clone_cannonball()
+                                break
                     if self.check_spell_ready() and self.clear_skies(_tanks):
                         if self.sts.debug:
                             self.sts.write_to_log(
@@ -659,6 +685,12 @@ class Tank (cosmos.Celestial):
                 else:
                     self.chamber_ball()
                     self.simple_target()
+                    if random.uniform(0, 1) < self.spell_weight \
+                        and self.check_spell_ready() \
+                        and self.speed_guess > (self.escape_v*0.5):
+
+                        self.Spell_big_cannonball()
+                    
                     # self.quick_target()
                     if self.sts.debug:
                         self.sts.write_to_log(f"{self.name} chose to shoot...")
@@ -788,20 +820,21 @@ class Tank (cosmos.Celestial):
                 os.path.join(settings.ICE_PATH, "Form") )
             self.Spell_ice_frames[1] = self.load_frames_to(
                 os.path.join(settings.ICE_PATH, "Break") )
-            self.Spell_teleport_frames = self.load_frames_to(
-                settings.TELEPORT_PATH)
+            self.Spell_teleport_frames = self.load_frames_to(settings.TELEPORT_PATH)
             self.Spell_meteor_frames[0] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Opening") )
             self.Spell_meteor_frames[1] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Steady") )
             self.Spell_meteor_frames[2] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Closing") )
-            self.spellbook_frames = self.load_frames_to(
-                settings.SPELLBOOK_PATH)
+            self.Spell_clone_frames = self.load_frames_to(settings.CLONE_PATH)
+            self.spellbook_frames = self.load_frames_to(settings.SPELLBOOK_PATH)
 
             # Spellready icon
             self.spellready_pix = self.load_pix_to(
-                os.path.join(path_to_frames, settings.SPELLREADY_ICON_PATH) )         
+                os.path.join(path_to_frames, settings.SPELLREADY_ICON_PATH) )
+            # Scroll icon
+            self.scroll_pix = self.load_pix_to(settings.SCROLL_ICON_PATH) 
             
     def fix_snail_pix(self):
         self.pix_flip = [self.moving_CW, False]
@@ -831,6 +864,8 @@ class Tank (cosmos.Celestial):
         for _tank in _tanks:
             for ball in _tank.balls:
                 ball_dist = self.get_dist(ball.x, ball.y)
+                if "-big" in ball.name.lower():
+                    ball_dist -= ball.explode_radius
                 if ball_dist < danger_dist:
                     if ball.exploding or ball.armed:
                         dangerous_ball = ball
@@ -860,6 +895,7 @@ class Tank (cosmos.Celestial):
             spell_ready = True
         else:
             spell_ready = False
+        
         return spell_ready
         
     def check_spells(self, _tanks):
@@ -1034,6 +1070,17 @@ class Tank (cosmos.Celestial):
             elif "teleport" in pixie.name.lower():
                 if pixie.animation_finished:
                     pixies_to_remove.append(pixie)
+            elif "clone" in pixie.name.lower():
+                if pixie.animation_finished:
+                    pixies_to_remove.append(pixie)
+            elif pixie.name.lower() == "scroll":
+                pixie.pix_rotate = self.pix_rotate
+                pixie.screen_x = self.screen_x
+                pixie.screen_y = self.screen_y
+                pixie.displace_pix(
+                    self.screen_displacement*2.5, (self.homeworld.screen_x, self.homeworld.screen_y) )
+                if ( time.time() - pixie.frame_timer ) > settings.DEFAULT_SCROLL_TIME:
+                    pixies_to_remove.append(pixie)
             elif pixie.name.lower() == "spellready icon":
                 
                 tank_count = 0
@@ -1065,6 +1112,8 @@ class Tank (cosmos.Celestial):
                 self.frame_wait = 1 / 10
                 self.frame_timer = time.time()
                 self.remove_effect_pixie("spellbook")
+                if self.sts.sound_on:
+                    self.sts.sounds["dying"].play()
                 if self.sts.debug:
                     self.sts.write_to_log(f"{self.name} is dying!")
             elif self.animation_finished:
@@ -1095,6 +1144,9 @@ class Tank (cosmos.Celestial):
             self.spell_timer = time.time()
             shields_raised = True
 
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
+
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} cast raise shield Spell!")
 
@@ -1122,6 +1174,8 @@ class Tank (cosmos.Celestial):
             self.frozen = True
             self.spell_timer = time.time()
             self.read_spellbook()
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
 
     def Spell_meteor_portal(self, _tanks):
         can_cast_meteor = True
@@ -1160,6 +1214,8 @@ class Tank (cosmos.Celestial):
             self.remove_effect_pixie("spellready icon")
             self.frozen = True
             self.read_spellbook()
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
 
     def summon_meteor(self, portal_r):
 
@@ -1224,6 +1280,8 @@ class Tank (cosmos.Celestial):
             self.spell_active = True
             self.remove_effect_pixie("spellready icon")
             self.read_spellbook()
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
             self.spell_timer = time.time()
 
     def Spell_teleport_snail(self):
@@ -1256,8 +1314,11 @@ class Tank (cosmos.Celestial):
             self.transform_pix()
             self.load_frame()
 
+            self.read_scroll()
             self.spell_cooldown = time.time()
             self.remove_effect_pixie("spellready icon")
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
 
             self.effect_pixies.append(cosmos.Celestial(self.sts))
             self.effect_pixies[-1].name = f"{self.name}'s destination teleport puff"
@@ -1272,6 +1333,100 @@ class Tank (cosmos.Celestial):
             self.effect_pixies[-1].set_frames(self.Spell_teleport_frames)
             self.effect_pixies[-1].animate = True
             self.effect_pixies[-1].animate_repeat = False
+
+    def find_first_armed_ball(self):
+        first_ball = False
+        if len(self.balls) > 0:
+            for ball in self.balls:
+                if ball.active \
+                and ball.armed \
+                and not ball.exploding \
+                and not ball.given_away:
+                    first_ball = ball
+                    break
+        
+        return first_ball
+    
+    def Spell_clone_cannonball(self):
+        
+        first_ball = self.find_first_armed_ball()
+        
+        if self.check_spell_ready() and first_ball:
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].name = f"{self.name}'s {first_ball.name}'s clone puff"
+            self.effect_pixies[-1].screen_x = first_ball.screen_x
+            self.effect_pixies[-1].screen_y = first_ball.screen_y
+            self.effect_pixies[-1].screen_rad = first_ball.screen_rad*1.5
+            self.effect_pixies[-1].frame_wait = 1/10
+            self.effect_pixies[-1].frame_timer = time.time()        
+            self.effect_pixies[-1].set_frames(self.Spell_clone_frames)
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
+
+            num_clones = settings.DEFAULT_NUM_CLONES
+            
+            if num_clones < 2:
+                num_clones = 2
+            if (num_clones % 2):
+                num_clones -= 1
+
+            spread = settings.DEFAULT_CLONE_SPREAD
+            veer_rad = spread/(num_clones + 1)
+
+            for clone_no in range( 1, (settings.DEFAULT_NUM_CLONES+1) ):
+                
+                if clone_no <= (num_clones/2):
+                    nudge_rad = -spread/2 + (clone_no - 1)*veer_rad
+                else:
+                    nudge_rad = -spread/2 + (clone_no + 1)*veer_rad
+
+                self.balls.append(cosmos.Cannonball(self.sts, self.celestials))
+                self.total_balls += 1
+                self.balls[-1].active = True
+                self.balls[-1].armed = True
+                self.balls[-1].set_xy(first_ball.x, first_ball.y)
+                self.balls[-1].screen_rad = first_ball.screen_rad
+                # ***************************************************************************
+                [self.balls[-1].vx, self.balls[-1].vy] = \
+                    cosmos.rotate_vector([first_ball.vx, first_ball.vy], nudge_rad)
+                self.balls[-1].name = \
+                    f"Cloned Cannonball #{clone_no}-{self.total_balls} of {first_ball.name}"
+
+                self.balls[-1].color = self.color
+                self.balls[-1].flash_colors = self.ball_flash_colors
+
+                # code to load sprite frames for new cannonball
+                self.balls[-1].set_frames(self.ball_frames)
+                self.balls[-1].animate = True
+                self.balls[-1].animate_repeat = True
+                if self.sts.debug:
+                    log_text = [f"{self.balls[-1].name} cloned by {self.name}!"]
+                    log_text.append(f"Velocity set to: ({self.balls[-1].vx}, {self.balls[-1].vy}).")
+                    log_text.append(f"Veclocity was rotated by {nudge_rad} radians.")
+                    log_text.append(
+                        f"{first_ball.name}'s velocity is:  ({first_ball.vx}, {first_ball.vy})")
+                    
+                    self.sts.write_to_log(log_text)
+           
+            self.read_scroll()
+            self.spell_cooldown = time.time()
+            self.remove_effect_pixie("spellready icon")
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
+
+    def Spell_big_cannonball(self):
+
+        big_ball = self.find_chambered_ball()
+
+        if self.check_spell_ready() and big_ball:
+            big_ball.explode_radius *= settings.DEFAULT_BIG_BALL_GROWTH
+            big_ball.name += "-big"
+
+        self.read_scroll()
+        self.spell_cooldown = time.time()
+        self.remove_effect_pixie("spellready icon")
+        if self.sts.sound_on:
+            self.sts.sounds["cast spell"].play()        
 
     def remove_effect_pixie(self, pixie_to_remove):
         removed = False        
@@ -1312,6 +1467,20 @@ class Tank (cosmos.Celestial):
         self.effect_pixies[-1].set_frames(self.spellbook_frames)
         self.effect_pixies[-1].animate = True
         self.effect_pixies[-1].animate_repeat = True
+
+    def read_scroll(self):
+        
+        self.effect_pixies.append(cosmos.Celestial(self.sts))
+        self.effect_pixies[-1].name = "scroll"
+        self.effect_pixies[-1].pix_rotate = self.pix_rotate
+        self.effect_pixies[-1].screen_x = self.screen_x
+        self.effect_pixies[-1].screen_y = self.screen_y
+        self.effect_pixies[-1].displace_pix(
+            self.screen_displacement*2, (self.homeworld.screen_x, self.homeworld.screen_y) )
+        self.effect_pixies[-1].screen_rad = (self.screen_rad / 2)
+        self.effect_pixies[-1].pix = self.scroll_pix
+        self.effect_pixies[-1].transform_pix()
+        self.effect_pixies[-1].frame_timer = time.time()
 
     def show_spellready_icon(self, _tanks):
         if not self.pixie_exists("spellready icon"):

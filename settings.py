@@ -151,6 +151,7 @@ DEFAULT_FONT_COLOR = (255, 255, 255)    # white
 
 DEFAULT_SPELL_COOLDOWN_TIME = 10
 DEFAULT_SPELL_TIME = 3
+DEFAULT_SCROLL_TIME = 1
 
 DEFAULT_GRAVITY_INCREASE = 10
 # Portal will be displaced 5 times the homeworld radius through the homeworld center
@@ -158,6 +159,11 @@ DEFAULT_GRAVITY_INCREASE = 10
 DEFAULT_PORTAL_DISPLACEMENT = 5
 # Portal width is 150% that of the homeworld's diameter
 DEFAULT_PORTAL_WIDTH = 1.5
+# Number of cannonballs cloned
+DEFAULT_NUM_CLONES = 4
+DEFAULT_CLONE_SPREAD = math.pi/4
+# How much bigger big balls get
+DEFAULT_BIG_BALL_GROWTH = 4
 
 CHAMBER_BALL = pygame.K_RETURN
 FIRE_BALL = pygame.K_SPACE
@@ -175,16 +181,19 @@ SPELL_GRAVITY = pygame.K_g
 SPELL_ICE = pygame.K_i
 SPELL_TELEPORT = pygame.K_t
 SPELL_METEOR = pygame.K_m
+SPELL_CLONE = pygame.K_c
+SPELL_BIG_BALL = pygame.K_b
 
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
 DEFAULT_AI_FIRE_WEIGHT = 0.8
-DEFAULT_AI_SPELL_WEIGHT = 0.8
+DEFAULT_AI_SPELL_WEIGHT = 0.2
 # How long in seconds that AI tank will wait to make an action to slow it down
 DEFAULT_AI_WAIT_TIME = 0
 # AI Tanks will avoid armed or exploding balls 
 # this fraction of the homeworld's radius away
 DEFAULT_DANGER_RATIO = 0.2
+DEFAULT_STEP_AWAY_RAD = math.pi/8
 
 # Game will keep track of objects that are this far out of screen,
 # i.e. if value is 0.5, objects will be keep in memory as long as they
@@ -213,8 +222,18 @@ SPELLBOOK_PATH = "Pix/Magic/Spellbook"
 ICE_PATH = "Pix/Magic/Ice"
 TELEPORT_PATH = "Pix/Magic/Teleport"
 METEOR_PATH = "Spells/Meteor"
+CLONE_PATH = "Pix/Magic/Clone"
 
 SPELLREADY_ICON_PATH = "Spells/Spellready_Icon/spellready.png"
+SCROLL_ICON_PATH = "Pix/Magic/Scroll/scroll.png"
+
+SOUNDS_PATHS = {
+    "dying": "Sounds/dying.wav",
+    "cannonball-explode": "Sounds/cannonball_explode.wav",
+    "cast spell": "Sounds/cast_spell.wav",
+    "cannonball-fire": "Sounds/cannonball_fire.wav",
+    "cannonball-armed": "Sounds/cannonball_armed.wav"
+}
 
 DEFAULT_BALL_PIX_SCREEN_RAD = 10
 
@@ -330,6 +349,9 @@ class Settings:
        
         self.screen_dist_scale = self.act_h * self.rad_scale / \
             EARTH_RADIUS
+
+        self.sound_on = False
+        self.sounds = {}
 
     def set_fps(self, fps):
         """ Set FPS """
@@ -586,3 +608,18 @@ class Settings:
                         log_file.write(line)
                 else:
                     log_file.write(line)
+
+    def load_sounds(self):
+
+        log_text = []
+        for key, path in SOUNDS_PATHS.items():
+            path = os.path.normpath(path)
+            if os.path.exists(path):
+                self.sounds[key] = pygame.mixer.Sound(path)
+                if self.debug:
+                    log_text.append(f"{path} loaded with key [{key}]")
+            elif self.debug:
+                log_text.append(f"ERROR: sound file {path} for key [{key}] not found!")
+        
+        if self.debug:
+            self.write_to_log(log_text)

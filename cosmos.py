@@ -905,6 +905,9 @@ class Cannonball(Celestial):
         self.explode_start = time.time()
         # keep track of explosion color switching time
         self.frame_timer = time.time()
+
+        if self.sts.sound_on:
+            self.sts.sounds["cannonball-explode"].play()
     
     def expand(self):
         """ Keep track of exploding cannonball's explosion radius. """

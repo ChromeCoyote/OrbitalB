@@ -528,16 +528,17 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log(f"{self.name} attempting to fire cannonball...")
             if not self.fire_ball() and self.sts.debug:
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
-        elif self.check_for_danger(_tanks):
+        elif self.check_for_danger(_tanks) or self.check_for_rogue_celestials():
             self.eject_ball()
             if self.check_spell_ready():
                 old_pos = self.pos_angle
                 self.pos_angle += math.pi
                 self.get_surface_pos()
-                danger_over_there = self.check_for_danger(_tanks)
+                danger_balls_there = self.check_for_danger(_tanks)
+                danger_bodies_there = self.check_for_rogue_celestials()
                 self.pos_angle = old_pos
                 self.get_surface_pos()
-                if not danger_over_there:
+                if not danger_balls_there and not danger_bodies_there:
                     self.Spell_teleport_snail()
                 else:
                     self.Spell_raise_shields()
@@ -589,6 +590,7 @@ class Tank (cosmos.Celestial):
         
     def move_to_position_target(self, _tanks):
         danger_ball = self.check_for_danger(_tanks)
+        danger_body = self.check_for_rogue_celestials()
         
         if danger_ball:
             if self.check_spell_ready():
@@ -600,7 +602,27 @@ class Tank (cosmos.Celestial):
                     self.pos_target = danger_angle - math.pi/8
                 else:
                     self.pos_target = danger_angle + math.pi/8
-        
+        elif danger_body:
+            if self.check_spell_ready():
+                old_pos = self.pos_angle
+                self.pos_angle += math.pi
+                self.get_surface_pos()
+                danger_balls_there = self.check_for_danger(_tanks)
+                danger_bodies_there = self.check_for_rogue_celestials()
+                self.pos_angle = old_pos
+                self.get_surface_pos()
+                if not danger_balls_there and not danger_bodies_there:
+                    self.Spell_teleport_snail()
+                else:
+                    self.Spell_raise_shields()
+            else:
+                danger_angle = math.atan2(danger_body.y, danger_body.x)
+                angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
+                if angle_between > 0:
+                    self.pos_target = danger_angle - math.pi/4
+                else:
+                    self.pos_target = danger_angle + math.pi/4
+
         angle_between = cosmos.angle_between(self.pos_target, self.pos_angle)
 
         if abs(angle_between) < self.tolerance*self.radian_step:
@@ -623,13 +645,17 @@ class Tank (cosmos.Celestial):
                     for _tank in _tanks:
                         if _tank.name != self.name and (_tank.check_for_danger(_tanks) or _tank.spell_active):
                                 self.Spell_ice_counterspell(_tanks)
+                                break
+                        elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
+                            not self.check_for_danger(_tanks):
+                                self.Spell_meteor_portal(_tanks)
                                 break                       
                     if self.check_spell_ready() and self.clear_skies(_tanks):
                         if self.sts.debug:
                             self.sts.write_to_log(
                                 f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
                         self.Spell_raise_gravity(_tanks)
-                            
+                    
                 else:
                     self.chamber_ball()
                     self.simple_target()
@@ -802,16 +828,26 @@ class Tank (cosmos.Celestial):
     def check_for_danger(self, _tanks):
         dangerous_ball = False
         danger_dist = self.homeworld.radius*settings.DEFAULT_DANGER_RATIO
-        if not self.player_tank:
-            for _tank in _tanks:
-                for ball in _tank.balls:
-                    ball_dist = self.get_dist(ball.x, ball.y)
-                    if ball_dist < danger_dist:
-                        if ball.exploding or ball.armed:
-                            dangerous_ball = ball
-                            danger_dist = ball_dist
-
+        for _tank in _tanks:
+            for ball in _tank.balls:
+                ball_dist = self.get_dist(ball.x, ball.y)
+                if ball_dist < danger_dist:
+                    if ball.exploding or ball.armed:
+                        dangerous_ball = ball
+                        danger_dist = ball_dist
+            
         return dangerous_ball
+
+    def check_for_rogue_celestials(self):
+        dangerous_body = False
+        danger_dist = self.homeworld.radius*settings.DEFAULT_DANGER_RATIO*2
+        for body in self.celestials:
+            body_dist = self.get_dist(body.x, body.y)
+            if body_dist < danger_dist and not body.homeworld:
+                dangerous_body = body
+                danger_dist = body_dist
+
+        return dangerous_body
 
     def check_spell_ready(self):
         
@@ -920,7 +956,10 @@ class Tank (cosmos.Celestial):
                         self.spell_timer = time.time()
                     
                     elif pixie.name.lower() == "portal-steady":
-                        # spell effect here
+                         
+                        if random.uniform(0,1) < self.sts.asteroid_chance:
+                            self.summon_meteor( (pixie.x, pixie.y) )
+
                         if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
                             pixie.name = "portal-closing"
                             pixie.animate_repeat = False
@@ -1026,9 +1065,13 @@ class Tank (cosmos.Celestial):
                 self.frame_wait = 1 / 10
                 self.frame_timer = time.time()
                 self.remove_effect_pixie("spellbook")
+                if self.sts.debug:
+                    self.sts.write_to_log(f"{self.name} is dying!")
             elif self.animation_finished:
                 self.dying = False
                 self.active = False
+                if self.sts.debug:
+                    self.sts.write_to_log(f"{self.name} had died :(")
 
     def Spell_raise_shields(self):
         shields_raised = False
@@ -1052,6 +1095,9 @@ class Tank (cosmos.Celestial):
             self.spell_timer = time.time()
             shields_raised = True
 
+            if self.sts.debug:
+                self.sts.write_to_log(f"{self.name} cast raise shield Spell!")
+
         return shields_raised
     
     def Spell_raise_gravity(self, _tanks):
@@ -1067,6 +1113,7 @@ class Tank (cosmos.Celestial):
             self.effect_pixies.append(cosmos.Celestial(self.sts))
             self.effect_pixies[-1].screen_rad = 0
             self.effect_pixies[-1].set_frames(self.Spell_gravity_frames)
+            self.effect_pixies[-1].frame_timer = time.time()
             self.effect_pixies[-1].animate = True
             self.effect_pixies[-1].animate_repeat = True
             self.effect_pixies[-1].name = "gravity-rising"
@@ -1087,11 +1134,15 @@ class Tank (cosmos.Celestial):
         
         if self.check_spell_ready() and can_cast_meteor:
             self.effect_pixies.append(cosmos.Celestial(self.sts))
-            self.effect_pixies[-1].screen_rad = self.homeworld.screen_rad*1.5
+            # The width of the portal is 150% of the homeworld radius,
+            # and the screen radius is 150% of its actual radius to make it look better
+            self.effect_pixies[-1].screen_rad = (
+                self.homeworld.screen_rad*settings.DEFAULT_PORTAL_WIDTH)*1.5
             self.effect_pixies[-1].set_frames(self.Spell_meteor_frames[0])
             self.effect_pixies[-1].animate = True
             self.effect_pixies[-1].animate_repeat = False
             self.effect_pixies[-1].frame_wait = 1/30
+            self.effect_pixies[-1].frame_timer = time.time()
             self.effect_pixies[-1].name = "portal-opening"
             self.effect_pixies[-1].x = self.x
             self.effect_pixies[-1].y = self.y
@@ -1104,13 +1155,47 @@ class Tank (cosmos.Celestial):
 
             self.effect_pixies[-1].get_screenxy()
             self.effect_pixies[-1].pix_rotate = self.pix_rotate + math.pi/2
-            # self.effect_pixies[-1].displace_pix(
-            #    self.homeworld.screen_rad, (self.homeworld.screen_x, self.homeworld.screen_y) )
             
             self.spell_active = True
             self.remove_effect_pixie("spellready icon")
             self.frozen = True
             self.read_spellbook()
+
+    def summon_meteor(self, portal_r):
+
+        d_half = (settings.DEFAULT_PORTAL_WIDTH*self.homeworld.radius)
+        portal_ang = self.pos_angle + math.pi/2
+
+        if portal_ang:
+            X = random.uniform(-1,1)*d_half*math.cos(portal_ang)
+            Y = math.tan(portal_ang)*X
+            X += portal_r[0]
+            Y += portal_r[1]
+        else:
+            X = portal_r[0]
+            Y = random.uniform(-1,1)*d_half*math.cos(portal_ang)
+            Y += portal_r[1]
+
+        self.celestials.append(cosmos.Celestial(self.sts))
+        self.celestials[-1].set_attr(f"{self.name}'s summoned asteroid-{(X, Y)}", \
+            False, settings.CERES_DENSITY, settings.CERES_RADIUS, (
+                random.randint(0, 255),random.randint(0, 255),random.randint(0, 255)) )
+        
+        self.celestials[-1].x = X
+        self.celestials[-1].y = Y
+
+        speed = math.sqrt(settings.GRAV_CONST * self.homeworld.mass / \
+            self.homeworld.radius) * settings.DEFAULT_ASTEROID_SPEED
+        velocity = numpy.multiply( -speed, self.get_unit(self.homeworld.x, self.homeworld.y) )
+
+        self.celestials[-1].set_v(velocity[0], velocity[1])
+        
+        self.get_screenxy()
+        self.celestials[-1].pick_dwarf_pix()
+        
+        if self.celestials[-1].sts.debug:
+            self.sts.write_to_log(f"{self.celestials[-1].name} created!")
+            self.celestials[-1].write_values()
 
     def Spell_ice_counterspell(self, _tanks):
         if self.check_spell_ready():

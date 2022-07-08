@@ -102,27 +102,6 @@ class Engine:
 
         return asteroid_created
 
-    def create_comet(self):
-        comet_created = False
-        cnt = len(self.celestials)
-        if cnt > 0:
-            self.celestials.append(cosmos.Celestial(self.sts))
-            self.celestials[-1].set_attr(f'Comet #{cnt + 1}', False, settings.COMET_DENSITY, \
-                settings.COMET_RADIUS, settings.DEFAULT_COMET_COLOR)
-            speed = math.sqrt(settings.GRAV_CONST * self.celestials[0].mass / \
-                self.celestials[-1].radius) / 3
-            x_on_screen = int(
-                self.celestials[-1].width + self.celestials[-1].screen_rad)
-            y_on_screen = random.randint(0, self.celestials[-1].height)
-            self.celestials[-1].place_on_screen(x_on_screen, y_on_screen)
-            self.celestials[-1].set_v(-speed, 0)
-            comet_created = True
-            if self.celestials[-1].sts.debug:
-                self.sts.write_to_log(f"{self.celestials[-1].name} created!")
-                self.celestials[-1].write_values()
-
-        return comet_created
-    
     def create_tank(self, player_tank):
         tank_created = False
         if isinstance(self.celestials, list) and len(self.celestials) > 0:
@@ -156,7 +135,6 @@ class Engine:
                 self.tanks[tank_ind].reset_default_launch()
                 self.tanks[tank_ind].fix_snail_pix()
                 self.tanks[tank_ind].load_frame()
-                self.tanks[tank_ind].transform_pix()
 
             # self.tanks[-1].spell_cooldown = time.time()
             
@@ -343,17 +321,17 @@ class Engine:
     def endgame_screen(self):
         wait4me = True
 
-        self.set_font_size(48)
+        # self.set_font_size(48)
         if self.tanks and self.tanks[0].winner:
             self.add_message(
-                f"{self.tanks[0].name} wins!", self.screen_rect.center, self.tanks[0].color)
+                f"{self.tanks[0].name} wins!", self.screen_rect.midbottom, self.tanks[0].color)
             game_over_color = self.tanks[0].color
         elif not self.tanks:
             self.add_message(
-                "All tanks destroyed!", self.screen_rect.center, settings.DEFAULT_FONT_COLOR)
+                "All tanks destroyed!", self.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR)
             game_over_color = settings.DEFAULT_FONT_COLOR
-        self.set_font_size(64)
-        self.add_message("GAME OVER", self.screen_rect.center, game_over_color)
+        # self.set_font_size(64)
+        self.add_message("GAME OVER", self.screen_rect.midbottom, game_over_color)
 
         while wait4me:
             self.ticktock()

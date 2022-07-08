@@ -22,7 +22,7 @@ MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-MainEngine.create_tank(True)
+MainEngine.create_tank(False)
 MainEngine.create_tank(False)
 MainEngine.create_tank(False)
 
@@ -49,7 +49,7 @@ while not MainEngine.game_over:
             body.move(MainEngine.celestials)
             for tank in MainEngine.tanks:
                 tank.check_smush(body)    
-            # body.shatter(MainEngine.celestials, MainEngine.tanks)
+            body.shatter(MainEngine.celestials, MainEngine.tanks)
             body.bounce_all(MainEngine.celestials)
                     
         cosmos.check_celestials(MainEngine.celestials)
@@ -69,7 +69,7 @@ while not MainEngine.game_over:
                 MainSettings.faraway_pixies.append( 
                    (tank.pix, (tank.screen_x + tank.pix_offset_x, tank.screen_y + tank.pix_offset_y )) )
                 MainEngine.add_message(
-                    f"{tank.name} has been destroyed!", MainEngine.screen_rect.center, tank.color)
+                    f"{tank.name} has been destroyed!", MainEngine.screen_rect.midbottom, tank.color)
                 
         MainEngine.time += MainEngine.sts.tres
 

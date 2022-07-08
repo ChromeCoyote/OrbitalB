@@ -128,7 +128,8 @@ COLD_THRESHOLD = 0.3
 CZAR_BOMBA_ENERGY = 2e11
 
 # frequency of asteroid creation...
-DEFAULT_ASTEROID_CHANCE = 1/120
+DEFAULT_ASTEROID_CHANCE = 1/16
+DEFAULT_ASTEROID_SPEED = 1.2
 
 # AI PARAMETERS
 SIMPLE_SPEED_GUESS_LOWER = 0.8
@@ -145,7 +146,7 @@ DEFAULT_LUNA_COLOR = (254, 252, 215)    # Moon Glow
 # DEFAULT LUNA_COLOR = (201, 201, 201)   # gray
 DEFAULT_COMET_COLOR = (200, 233, 233)   # ice blue
 
-DEFAULT_FONT_SIZE = 24
+DEFAULT_FONT_SIZE = 48
 DEFAULT_FONT_COLOR = (255, 255, 255)    # white
 
 DEFAULT_SPELL_COOLDOWN_TIME = 10
@@ -155,6 +156,8 @@ DEFAULT_GRAVITY_INCREASE = 10
 # Portal will be displaced 5 times the homeworld radius through the homeworld center
 # away from the tank
 DEFAULT_PORTAL_DISPLACEMENT = 5
+# Portal width is 150% that of the homeworld's diameter
+DEFAULT_PORTAL_WIDTH = 1.5
 
 CHAMBER_BALL = pygame.K_RETURN
 FIRE_BALL = pygame.K_SPACE
@@ -190,7 +193,7 @@ DEFAULT_VIRTUAL_SCREEN = 0.5
 
 # Chance for one of the 8 zones to have a faraway object
 DEFAULT_CHANCE_FOR_FARAWAY_OBJECT = 1/4
-NUM_ZONES = 8
+NUM_ZONES = 7
 
 # Number of faraway object categories
 
@@ -472,24 +475,27 @@ class Settings:
                 Y = min_y
             elif Y > max_y:
                 Y = max_y
+        # ********************************************************
+        # ZONE 7 BEING REMOVED SO AS NOT TO CROWD SPELLREADY ICONS
+        # ********************************************************
+        # elif zone == 7:
+        #     min_x = 0
+        #     min_y = int((5/6)*self.act_h)
+        #     max_x = int((1/6)*self.act_w)
+        #     max_y = int(self.act_h)
+        #     mid_x = int((max_x + min_x) / 2)
+        #    mid_y = int((max_y + min_y) / 2)
+        #     X = int( numpy.random.normal(mid_x, (1/20)*self.act_w) )
+        #     Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
+        #     if X < min_x:
+        #         X = min_x
+        #     elif X > max_x:
+        #         X = max_x
+        #     elif Y < min_y:
+        #        Y = min_y
+        #     elif Y > max_y:
+        #         Y = max_y
         elif zone == 7:
-            min_x = 0
-            min_y = int((5/6)*self.act_h)
-            max_x = int((1/6)*self.act_w)
-            max_y = int(self.act_h)
-            mid_x = int((max_x + min_x) / 2)
-            mid_y = int((max_y + min_y) / 2)
-            X = int( numpy.random.normal(mid_x, (1/20)*self.act_w) )
-            Y = int( numpy.random.normal(mid_y, (1/20)*self.act_h) )
-            if X < min_x:
-                X = min_x
-            elif X > max_x:
-                X = max_x
-            elif Y < min_y:
-                Y = min_y
-            elif Y > max_y:
-                Y = max_y
-        elif zone == 8:
             min_x = 0
             min_y = int((1/6)*self.act_h)
             max_x = int((1/6)*self.act_w)

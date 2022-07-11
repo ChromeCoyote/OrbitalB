@@ -28,6 +28,7 @@ def check_tanks(tanks, _settings):
                     else:
                         if _settings.debug:
                             _settings.write_to_log(f"Only one tank left, can't give cannonballs away!")
+                        del tank.balls
                 destroyed_tanks.append(tank)
                 tanks.remove(tank)
                 if _settings.debug:
@@ -101,7 +102,7 @@ class Tank (cosmos.Celestial):
         self.effect_pixies = []
 
         # *** STUFF FOR SPELLS ***
-        self.spell_cooldown = False
+        self.spell_cooldown_timer = False
         self.spell_timer = False
         self.spell_active = False
         self.spellready_pix = False
@@ -128,6 +129,19 @@ class Tank (cosmos.Celestial):
         # for clone spell
         self.Spell_clone_frames = False
         
+        # for fireball spell
+        self.Spell_fireball_frames = {}
+
+        # for shock spell
+        self.Spell_shock_frames = False
+
+        # for summon wolf spell
+        self.Spell_wolf_frames = {
+            "bite": False,
+            "howl": False,
+            "summon": False,
+            "walk": False }
+
         self.snail_color = False
         self.walking_frames = False
         self.firing_frames = False
@@ -155,15 +169,17 @@ class Tank (cosmos.Celestial):
         self.Spell_meteor = settings.SPELL_METEOR
         self.Spell_clone = settings.SPELL_CLONE
         self.Spell_big_ball = settings.SPELL_BIG_BALL
+        self.Spell_wolf = settings.SPELL_WOLF
+        self.Spell_fireball = settings.SPELL_FIREBALL
+        self.Spell_shock = settings.SPELL_SHOCK
 
         # AI variables
         self.angle_guess = self.launch_angle
         self.speed_guess = self.launch_speed
         self.pos_target = self.pos_angle
-
+       
         self.target = False
         self.tolerance = settings.DEFAULT_AI_TOLERANCE
-        self.restrict_movement = False
         self.fire_weight = settings.DEFAULT_AI_FIRE_WEIGHT
         self.spell_weight = settings.DEFAULT_AI_SPELL_WEIGHT
         # timer to slow down AI tank
@@ -293,8 +309,9 @@ class Tank (cosmos.Celestial):
     def eject_ball(self):
         found_chambered_ball = self.find_chambered_ball()
         if found_chambered_ball:
-            if "-big" in found_chambered_ball.name.lower():
-                self.spell_cooldown = False
+            if "-big" in found_chambered_ball.name.lower() \
+            or "-fireball" in found_chambered_ball.name.lower():
+                self.spell_active = False     
             self.balls.remove(found_chambered_ball)
             self.chambered_ball = False
             self.targeting = False
@@ -320,6 +337,11 @@ class Tank (cosmos.Celestial):
             self.targeting = False
             fire = True
 
+            if "-big" in found_chambered_ball.name.lower() \
+            or "-fireball" in found_chambered_ball.name.lower():
+                self.spell_active = False
+                self.spell_cooldown_timer = time.time()
+
             if self.sts.sound_on:
                 self.sts.sounds["cannonball-fire"].play()
         
@@ -335,16 +357,23 @@ class Tank (cosmos.Celestial):
     def check_balls(self, tanks):
         """ Check status of active balls """
 
-        for ball in self.balls[:]:
+        for ball in self.balls:
             if ball.active:
                 ball.check_off_screen()
                 if not ball.armed and not ball.exploding:
-                    if ( time.time() - ball.fuse_start ) > settings.DEFAULT_FUSE_TIME:
+                    if ( time.time() - ball.fuse_start ) > ball.fuse_length:
                         ball.armed = True
                         ball.animate = True
                         if "-big" in ball.name.lower():
                             ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD * \
                                 settings.DEFAULT_BIG_BALL_GROWTH
+                        elif "-fireball" in ball.name.lower():
+                            ball.screen_rad = 2 * settings.DEFAULT_BALL_PIX_SCREEN_RAD
+                            if self.target:
+                                target_unit = ball.get_vect(self.target.x, self.target.y)
+                            else:
+                                target_unit = (ball.vx, ball.vy)
+                            ball.pix_rotate = math.atan2(target_unit[1], target_unit[0])
                         else:
                             ball.screen_rad = settings.DEFAULT_BALL_PIX_SCREEN_RAD
                         ball.pix_frame = 0
@@ -357,9 +386,16 @@ class Tank (cosmos.Celestial):
                         #    ball.color = settings.DEFAULT_ARMED_COLOR
                 if ball.armed and ball.given_away and not ball.celestial_explosion:
                         if ( time.time() - ball.given_away_start ) > settings.DEFAULT_GIVEN_AWAY_TIME:
-                            ball.explode()
+                            ball.explode(self.Spell_fireball_frames)
                 if ball.exploding:
-                    if ( time.time() - ball.explode_start ) > settings.DEFAULT_EXPLODE_TIME:
+                    if "-fireball" in ball.name.lower():
+                        if ball.animation_finished:
+                            ball.exploding = False
+                            ball.active = False
+                        elif ball.stuck_to_celestial:
+                            ball.get_surface_pos()
+                            ball.pix_rotate = ball.pos_angle - math.pi/2
+                    elif ( time.time() - ball.explode_start ) > settings.DEFAULT_EXPLODE_TIME:
                         ball.exploding = False
                         ball.active = False
                         if self.sts.debug:
@@ -371,6 +407,22 @@ class Tank (cosmos.Celestial):
                         if not ball.celestial_explosion:
                             ball.expand()
                             ball.flash()
+
+                # *******************************
+                # *** SPECIAL FIREBALL CHECKS ***
+                if "-fireball" in ball.name.lower() and ball.armed:
+                    target_tank = False
+                    for tank in tanks:
+                        if f"[[[{tank.name.lower()}]]]" in ball.name.lower():
+                            target_tank = tank
+                    if target_tank:
+                        target_vector = ball.get_unit(target_tank.x, target_tank.y)
+                        target_vector = numpy.multiply(
+                            settings.DEFAULT_FIREBALL_THRUST*self.sts.tres, target_vector)
+                        ball.pix_rotate = math.atan2(target_vector[1], target_vector[0])
+                        (ball.vx, ball.vy) = numpy.add(target_vector, (ball.vx, ball.vy))
+                    else:
+                        ball.explode(self.Spell_fireball_frames)
 
                 ball.animation()               
                 ball.check_impact(tanks)
@@ -386,7 +438,7 @@ class Tank (cosmos.Celestial):
         blew_up = False
         for ball in self.balls:
             if ball.active and ball.armed and not blew_up and not ball.given_away:
-                ball.explode()
+                ball.explode(self.Spell_fireball_frames)
                 blew_up = True
         
         return blew_up
@@ -442,6 +494,19 @@ class Tank (cosmos.Celestial):
                 if not ball.chambered:
                     ball.given_away = True
                     ball.given_away_start = time.time()
+                    # special case for fireballs, grab frames from new host
+                    # before frames destroyed with old host
+                    if "-fireball" in ball.name.lower():
+                        if ball.exploding:
+                            if ball.stuck_to_celestial:
+                                ball.frames = tank.Spell_fireball_frames["surface explode"]
+                                ball.load_frame()
+                            else:
+                                ball.frames = tank.Spell_fireball_frames["space explode"]
+                                ball.load_frame()
+                        else:
+                            ball.explode(tank.Spell_fireball_frames)
+                    
                     tank.balls.append(ball)
     
     def pick_launch_angle(self):
@@ -539,26 +604,44 @@ class Tank (cosmos.Celestial):
         if abs(self.launch_speed - self.speed_guess) < (self.tolerance*self.speed_step):
             speed_ready = True
 
+        danger_pixie_here = self.check_for_pixies(_tanks)
+
         if angle_ready and speed_ready:
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} firing solution within tolerances, not adjusting firing solution...")
                 self.sts.write_to_log(f"{self.name} attempting to fire cannonball...")
             if not self.fire_ball() and self.sts.debug:
                 self.sts.write_to_log("ERROR firing cannonball, no ball chambered!")
-        elif self.check_for_danger(_tanks) or self.check_for_rogue_celestials():
+        elif self.check_for_danger(_tanks) \
+            or self.check_for_rogue_celestials() \
+            or danger_pixie_here:
+
             self.eject_ball()
+            
             if self.check_spell_ready():
                 old_pos = self.pos_angle
                 self.pos_angle += math.pi
                 self.get_surface_pos()
                 danger_balls_there = self.check_for_danger(_tanks)
                 danger_bodies_there = self.check_for_rogue_celestials()
+                danger_pixies_there = self.check_for_pixies(_tanks)
                 self.pos_angle = old_pos
                 self.get_surface_pos()
-                if not danger_balls_there and not danger_bodies_there:
-                    self.Spell_teleport_snail()
-                else:
+                if not danger_balls_there and not danger_bodies_there and not danger_pixies_there:
+                    self.Spell_teleport_snail(_tanks)
+                elif not danger_pixie_here:
                     self.Spell_raise_shields()
+                else:
+                    self.moving = True
+                    # angle_between = cosmos.angle_between(danger_pixie_here.pos_angle, self.pos_angle)
+                    # step_away = 2*settings.DEFAULT_STEP_AWAY_RAD
+                    # if angle_between > 0:
+                    #    self.pos_target = danger_pixie_here.pos_angle - step_away
+                    #else:
+                    #    self.pos_target = danger_pixie_here.pos_angle + step_away
+            else:
+                self.moving = True                    
+                    
         elif self.targeting:
             if self.sts.debug and not angle_ready:
                 self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
@@ -583,7 +666,30 @@ class Tank (cosmos.Celestial):
                     self.sts.write_to_log(f"{self.name} increased launch speed one unit...")
 
     def pick_position(self):
-            if random.getrandbits(1):
+            if self.target:
+                ang_btwn = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+                if "mage" in self.name.lower():
+                    self.pos_target = self.target.pos_angle + math.pi
+                elif "archer" in self.name.lower():
+                    if ang_btwn <= 0:
+                        self.pos_target = self.target.pos_angle + 3*math.pi/4
+                    else:
+                        self.pos_target = self.target.pos_angle - 3*math.pi/4
+                elif "berserker" in self.name.lower():
+                    if self.target.frozen \
+                    and abs(ang_btwn) < math.pi/4 \
+                    and self.check_spell_ready():
+                        self.pos_target = self.pos_angle
+                    elif ang_btwn <= 0:
+                        self.pos_target = self.target.pos_angle + math.pi/4
+                    else:
+                        self.pos_target = self.target.pos_angle - math.pi/4
+                else:
+                    if ang_btwn <= 0:
+                        self.pos_target = self.target.pos_angle + math.pi/2
+                    else:
+                        self.pos_target = self.target.pos_angle - math.pi/2
+            elif random.getrandbits(1):
                 self.pos_target = random.uniform(
                     (self.pos_angle + 3*math.pi/8), (self.pos_angle + math.pi/8) )
             else:
@@ -594,12 +700,6 @@ class Tank (cosmos.Celestial):
                 self.pos_target = (2*math.pi) + self.pos_target
             if self.pos_target >= (2*math.pi):
                 self.pos_target = self.pos_target % (2*math.pi)
-            
-            if self.restrict_movement:
-                if self.pos_target < math.pi and self.pos_target > math.pi/2:
-                    self.pos_target = math.pi
-                elif self.pos_target > 0 and self.pos_target < math.pi/2:
-                    self.pos_target = 0
 
             if self.sts.debug:
                 self.sts.write_to_log(
@@ -608,7 +708,14 @@ class Tank (cosmos.Celestial):
     def move_to_position_target(self, _tanks):
         danger_ball = self.check_for_danger(_tanks)
         danger_body = self.check_for_rogue_celestials()
+        danger_pixie = self.check_for_pixies(_tanks)
         
+        if self.check_spell_ready():
+            for _tank in _tanks:
+                if _tank.name != self.name \
+                and self.get_dist(_tank.x, _tank.y) < 4*settings.DEFAULT_EXPLODE_RADIUS:
+                    self.Spell_shock_strike()
+
         if danger_ball:
             if self.check_spell_ready():
                 self.Spell_raise_shields()
@@ -617,13 +724,25 @@ class Tank (cosmos.Celestial):
                 angle_between = cosmos.angle_between(danger_angle, self.pos_angle)
                 
                 step_away = settings.DEFAULT_STEP_AWAY_RAD
-                if "-big" in danger_ball.name.lower():
-                    step_away *= 2
+                if "-big" in danger_ball.name.lower() or "-fireball" in danger_ball.name.lower():
+                    step_away *= 3
 
                 if angle_between > 0:
                     self.pos_target = danger_angle - step_away
                 else:
                     self.pos_target = danger_angle + step_away
+        
+        elif danger_pixie:
+            step_away = settings.DEFAULT_STEP_AWAY_RAD
+            angle_between = cosmos.angle_between(danger_pixie.pos_angle, self.pos_angle)
+            if "wolf" in danger_pixie.name.lower():
+                step_away = 2*settings.DEFAULT_STEP_AWAY_RAD
+            elif danger_pixie.check_spell_ready():
+                step_away = 2*settings.DEFAULT_STEP_AWAY_RAD
+            if angle_between > 0:
+                self.pos_target = danger_pixie.pos_angle - step_away
+            else:
+                self.pos_target = danger_pixie.pos_angle + step_away    
         
         elif danger_body:
             if self.check_spell_ready():
@@ -632,10 +751,13 @@ class Tank (cosmos.Celestial):
                 self.get_surface_pos()
                 danger_balls_there = self.check_for_danger(_tanks)
                 danger_bodies_there = self.check_for_rogue_celestials()
+                danger_pixie_there = self.check_for_pixies(_tanks)
                 self.pos_angle = old_pos
                 self.get_surface_pos()
-                if not danger_balls_there and not danger_bodies_there:
-                    self.Spell_teleport_snail()
+                if not danger_balls_there \
+                    and not danger_bodies_there \
+                    and not danger_pixie_there:
+                    self.Spell_teleport_snail(_tanks)
                 else:
                     self.Spell_raise_shields()
             else:
@@ -659,37 +781,43 @@ class Tank (cosmos.Celestial):
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} moved one unit CW...")
 
-    def pick_move_or_shoot(self, _tanks):
-        self.pick_target(_tanks)
+    def _pick_move_or_shoot(self, _tanks):
+        if "mage" in self.name.lower() or "archer" in self.name.lower():
+            self.target = self.farthest_target(_tanks)
+        elif "berserker" in self.name.lower():
+            self.target= self.closest_target(_tanks)
+        else:
+            self.target = self.random_target(_tanks)
+        
         if self.target:
             if random.uniform(0, 1) < self.fire_weight:
                 if random.uniform(0, 1) < self.spell_weight and self.check_spell_ready():
                     
                     for _tank in _tanks:
-                        if _tank.name != self.name and (_tank.check_for_danger(_tanks) or _tank.spell_active):
+                        if _tank.name != self.name:
+                            if  _tank.check_for_danger(_tanks) or _tank.spell_active:
                                 self.Spell_ice_counterspell(_tanks)
                                 break
-                        elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
+                           
+                            elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
                             not self.check_for_danger(_tanks):
                                 self.Spell_meteor_portal(_tanks)
                                 break
-                        elif self.find_first_armed_ball():
+                            elif self.find_first_armed_ball() == _tanks[_tanks.index(_tank)].check_for_danger(_tanks):
                                 self.Spell_clone_cannonball()
                                 break
-                    if self.check_spell_ready() and self.clear_skies(_tanks):
-                        if self.sts.debug:
-                            self.sts.write_to_log(
-                                f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
-                        self.Spell_raise_gravity(_tanks)
-                    
+                            elif self.clear_skies(_tanks):
+                                if self.sts.debug:
+                                    self.sts.write_to_log(
+                                        f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
+                                self.Spell_raise_gravity(_tanks)
+                            else:
+                                self.Spell_summon_wolf()
+                                                    
                 else:
                     self.chamber_ball()
                     self.simple_target()
-                    if random.uniform(0, 1) < self.spell_weight \
-                        and self.check_spell_ready() \
-                        and self.speed_guess > (self.escape_v*0.5):
-
-                        self.Spell_big_cannonball()
+                   
                     
                     # self.quick_target()
                     if self.sts.debug:
@@ -713,17 +841,109 @@ class Tank (cosmos.Celestial):
                 self.sts.write_to_log(
                     f"No targets for {self.name}, chose to back down...")
 
-    def pick_target(self, _tanks):
+    def pick_move_or_shoot(self, _tanks):
+            if "mage" in self.name.lower() or "archer" in self.name.lower():
+                self.target = self.farthest_target(_tanks)
+            elif "berserker" in self.name.lower():
+                self.target= self.closest_target(_tanks)
+            else:
+                self.target = self.random_target(_tanks)
+            
+            if self.target:
+                d100 = random.uniform(0, 1)
+                if d100 < self.spell_weight and self.check_spell_ready():
+                    for _tank in _tanks:
+                        if _tank.name != self.name:
+                            if _tank.check_for_danger(_tanks) or _tank.spell_active:
+                                    self.Spell_ice_counterspell(_tanks)
+                                    break
+                            elif self.get_dist(_tank.x, _tank.y) < 4*settings.DEFAULT_EXPLODE_RADIUS:
+                                    self.Spell_shock_strike()
+                                    break
+                            elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
+                                not self.check_for_danger(_tanks):
+                                    self.Spell_meteor_portal(_tanks)
+                                    break
+                            elif self.find_first_armed_ball() == _tanks[_tanks.index(_tank)].check_for_danger(_tanks):
+                                    self.Spell_clone_cannonball()
+                                    break
+                            elif self.clear_skies(_tanks):
+                                if self.sts.debug:
+                                    self.sts.write_to_log(
+                                        f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
+                                self.Spell_raise_gravity(_tanks)
+                            else:
+                                self.Spell_summon_wolf()
+                elif (d100 - self.spell_weight) < self.fire_weight:
+                        
+                        self.chamber_ball()
+                        self.simple_target()
+                        
+                        if self.check_spell_ready() and random.uniform(0,1) < self.spell_weight:
+                            if self.target == self.farthest_target(_tanks) \
+                            and self.speed_guess > (0.8*self.escape_v):
+                                self.Spell_homing_fireball(_tanks)
+                            elif self.speed_guess > (0.5*self.escape_v):
+                                self.Spell_big_cannonball()
+                                                    
+                        # self.quick_target()
+                        if self.sts.debug:
+                            self.sts.write_to_log(f"{self.name} chose to shoot...")
+                else:
+                    self.targeting = False
+                    self.pick_position()
+                    self.move_to_position_target(_tanks)
+                    if self.sts.debug:
+                        self.sts.write_to_log(f"{self.name} chose to move...")
+            elif self.check_for_danger(_tanks):
+                self.pos_target = random.uniform(0, 2*math.pi)
+                self.move_to_position_target(_tanks)
+            elif not self.invulnerable:
+                self.moving = False
+                self.targeting = False
+                self.detonate_ball()
+                if self.chambered_ball:
+                    self.eject_ball()
+                if self.sts.debug:
+                    self.sts.write_to_log(
+                        f"No targets for {self.name}, chose to back down...")
+
+    def random_target(self, _tanks):
         """ Pick a target amongst list of tanks """
         potential_targets = []
+        return_tank = False
         for _tank in _tanks:
             if self.name != _tank.name:
                 potential_targets.append(_tank)
         if len(potential_targets):
-            self.target = random.choice(potential_targets)
-        else:
-            self.target = False
- 
+            return_tank = random.choice(potential_targets)
+
+        return return_tank
+
+    def closest_target(self, _tanks):
+        closest_dist = 3*self.homeworld.radius
+        return_tank = False
+        for _tank in _tanks:
+            if _tank.name != self.name:
+                tank_dist = self.get_dist(_tank.x, _tank.y)
+                if tank_dist < closest_dist:
+                    closest_dist = tank_dist
+                    return_tank = _tank
+
+        return return_tank
+
+    def farthest_target(self, _tanks):
+        farthest_dist = 0
+        return_tank = False
+        for _tank in _tanks:
+            if _tank.name != self.name:
+                tank_dist = self.get_dist(_tank.x, _tank.y)
+                if tank_dist > farthest_dist:
+                    farthest_dist = tank_dist
+                    return_tank = _tank
+
+        return return_tank
+    
     def make_choices(self, _tanks):
         if not self.player_tank:
             if ( time.time() - self.start_wait) > settings.DEFAULT_AI_WAIT_TIME:
@@ -811,25 +1031,62 @@ class Tank (cosmos.Celestial):
             self.ball_frames = self.load_frames_to(
                 os.path.join(path_to_frames, "Cannonball"))
             
-            # Load Spell frames
+            # *************************
+            # *** LOAD SPELL FRAMES ***
+            # *************************
+
+            # sheild frames (for snail)
             self.Spell_shield_frames = self.load_frames_to(
                 os.path.join(path_to_frames, settings.SHIELD_PATH))
+            
+            # gravity frames
             self.Spell_gravity_frames = self.load_frames_to(
                 os.path.join(path_to_frames, settings.GRAVITY_PATH) )
+            
+            # ice frames
             self.Spell_ice_frames[0] = self.load_frames_to(
                 os.path.join(settings.ICE_PATH, "Form") )
             self.Spell_ice_frames[1] = self.load_frames_to(
                 os.path.join(settings.ICE_PATH, "Break") )
+            
+            # teleport frames
             self.Spell_teleport_frames = self.load_frames_to(settings.TELEPORT_PATH)
+            
+            # meteor frames
             self.Spell_meteor_frames[0] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Opening") )
             self.Spell_meteor_frames[1] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Steady") )
             self.Spell_meteor_frames[2] = self.load_frames_to(
                 os.path.join(path_to_frames, settings.METEOR_PATH, "Portal-Closing") )
+            
+            # clone frames
             self.Spell_clone_frames = self.load_frames_to(settings.CLONE_PATH)
-            self.spellbook_frames = self.load_frames_to(settings.SPELLBOOK_PATH)
+            
+            # wolf frames
+            self.Spell_wolf_frames["bite"] = self.load_frames_to(
+                os.path.join(settings.WOLF_PATH, "Bite") )
+            self.Spell_wolf_frames["howl"] = self.load_frames_to(
+                os.path.join(settings.WOLF_PATH, "Howl") )
+            self.Spell_wolf_frames["summon"] = self.load_frames_to(
+                os.path.join(settings.WOLF_PATH, "Summon") )
+            self.Spell_wolf_frames["walk"] = self.load_frames_to(
+                os.path.join(settings.WOLF_PATH, "Walk") )
+            
+            # fireball frames
+            self.Spell_fireball_frames["armed"] = self.load_frames_to(
+                os.path.join(settings.FIREBALL_PATH, "Armed") )
+            self.Spell_fireball_frames["space explode"] = self.load_frames_to(
+                os.path.join(settings.FIREBALL_PATH, "Explode-Space") )
+            self.Spell_fireball_frames["surface explode"] = self.load_frames_to(
+                os.path.join(settings.FIREBALL_PATH, "Explode-Surface") )
 
+            # shock frames
+            self.Spell_shock_frames = self.load_frames_to(settings.SHOCK_PATH)
+
+            # *** ICONS ***
+            # Animated spellbook icon
+            self.spellbook_frames = self.load_frames_to(settings.SPELLBOOK_PATH)
             # Spellready icon
             self.spellready_pix = self.load_pix_to(
                 os.path.join(path_to_frames, settings.SPELLREADY_ICON_PATH) )
@@ -864,7 +1121,7 @@ class Tank (cosmos.Celestial):
         for _tank in _tanks:
             for ball in _tank.balls:
                 ball_dist = self.get_dist(ball.x, ball.y)
-                if "-big" in ball.name.lower():
+                if "-big" in ball.name.lower() or "-fireball" in ball.name.lower():
                     ball_dist -= ball.explode_radius
                 if ball_dist < danger_dist:
                     if ball.exploding or ball.armed:
@@ -884,11 +1141,33 @@ class Tank (cosmos.Celestial):
 
         return dangerous_body
 
+    def check_for_pixies(self, _tanks):
+        dangerous_pixie = False
+        danger_dist = self.homeworld.radius*settings.DEFAULT_DANGER_RATIO
+        for _tank in _tanks:
+            
+            for pixie in _tank.effect_pixies:
+                if "wolf" in pixie.name.lower():
+                    pixie_dist = self.get_dist(pixie.x, pixie.y) - pixie.radius
+                    if pixie_dist < danger_dist:
+                        dangerous_pixie = pixie
+                        danger_dist = pixie_dist
+            
+            if _tank.name != self.name:
+                pixie_dist = self.get_dist(_tank.x, _tank.y)
+                if _tank.check_spell_ready():
+                    pixie_dist -= 4*settings.DEFAULT_EXPLODE_RADIUS
+                if pixie_dist < danger_dist:
+                    dangerous_pixie = _tank
+                    danger_dist = pixie_dist
+        
+        return dangerous_pixie
+
     def check_spell_ready(self):
         
         cooled_down = True
-        if self.spell_cooldown:
-            cooldown_time = time.time() - self.spell_cooldown
+        if self.spell_cooldown_timer:
+            cooldown_time = time.time() - self.spell_cooldown_timer
             if cooldown_time < settings.DEFAULT_SPELL_COOLDOWN_TIME:
                 cooled_down = False
         if not self.spell_active and cooled_down:
@@ -910,7 +1189,7 @@ class Tank (cosmos.Celestial):
             self.show_spellready_icon(_tanks)
 
         # Special case for shields:
-        if self.invulnerable:
+        if self.invulnerable and not self.dying:
             if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME or not self.spell_active:
                 self.spell_active = False
                 self.invulnerable = False
@@ -920,7 +1199,7 @@ class Tank (cosmos.Celestial):
                 self.fix_snail_pix()
                 self.animate = False
                 self.animate_repeat = True
-                self.spell_cooldown = time.time()
+                self.spell_cooldown_timer = time.time()
                 if not self.player_tank:
                     self.pick_move_or_shoot(_tanks)
 
@@ -965,7 +1244,7 @@ class Tank (cosmos.Celestial):
                                 self.frozen = False
                             self.remove_effect_pixie("spellbook")
                             # Using gravity to completion takes extra cooldown time (x3)
-                            self.spell_cooldown = time.time() + 2*settings.DEFAULT_SPELL_COOLDOWN_TIME
+                            self.spell_cooldown_timer = time.time() + 2*settings.DEFAULT_SPELL_COOLDOWN_TIME
                             self.spell_active = False
                             if not self.player_tank:
                                 self.pick_move_or_shoot(_tanks)
@@ -976,7 +1255,7 @@ class Tank (cosmos.Celestial):
                     if pixie.screen_rad < 0:
                         pixie.screen_rad = 0
                         pixies_to_remove.append(pixie)
-                        self.spell_cooldown = time.time()
+                        self.spell_cooldown_timer = time.time()
                         self.remove_effect_pixie("spellbook")
                         if not self.dying:
                             self.frozen = False
@@ -1007,7 +1286,7 @@ class Tank (cosmos.Celestial):
                             self.frozen = False
                         self.remove_effect_pixie("spellbook")
                         # Using meteor to completion takes extra cooldown time (x2)
-                        self.spell_cooldown = time.time() + settings.DEFAULT_SPELL_COOLDOWN_TIME
+                        self.spell_cooldown_timer = time.time() + settings.DEFAULT_SPELL_COOLDOWN_TIME
                         self.spell_active = False
                         if not self.player_tank:
                             self.pick_move_or_shoot(_tanks)
@@ -1022,7 +1301,7 @@ class Tank (cosmos.Celestial):
                         pixie.set_frames(self.Spell_meteor_frames[2])
                     elif pixie.name == "portal-closing" and pixie.animation_finished:
                         pixies_to_remove.append(pixie)
-                        self.spell_cooldown = time.time()
+                        self.spell_cooldown_timer = time.time()
                         self.remove_effect_pixie("spellbook")
                         self.remove_effect_pixie("spellready icon")
                         if not self.dying:
@@ -1034,52 +1313,184 @@ class Tank (cosmos.Celestial):
                 if self.spell_active:
                     for _tank in _tanks:
                         if _tank.name in pixie.name:
-                            _tank.frozen = True
+                            if _tank.dying:
+                                pixie.name = "thawing-banish"
+                                pixie.set_frames(self.Spell_ice_frames[1])
+                                pixie.frame_wait = 1/10
+                                if not self.pixie_exists("ice"):
+                                    self.spell_active = False
+                                    self.spell_cooldown_timer = time.time()
+                                    self.remove_effect_pixie("spellbook")
+                                    if not self.dying:
+                                        self.frozen = False
+                                        if not self.player_tank:
+                                            self.pick_move_or_shoot(_tanks)
+                            else:
+                                _tank.frozen = True
                     
                     if ( time.time() - self.spell_timer ) > settings.DEFAULT_SPELL_TIME:
                         for _tank in _tanks:
-                            if _tank.name in pixie.name:
+                            if _tank.name in pixie.name and not _tank.dying:
                                 _tank.frozen = False
-                        pixie.name = "thawing"
+                        pixie.name = "thawing-banish"
                         pixie.set_frames(self.Spell_ice_frames[1])
                         pixie.frame_wait = 1/10
                         if not self.pixie_exists("ice"):
                             self.spell_active = False
-                        self.spell_cooldown = time.time()
-                        self.remove_effect_pixie("spellbook")
-                        if not self.dying:
-                            self.frozen = False
-                            if not self.player_tank:
-                                self.pick_move_or_shoot(_tanks)
+                            self.spell_cooldown_timer = time.time()
+                            self.remove_effect_pixie("spellbook")
+                            if not self.dying:
+                                self.frozen = False
+                                if not self.player_tank:
+                                    self.pick_move_or_shoot(_tanks)
                 else:
                     for _tank in _tanks:
-                        if _tank.name in pixie.name:
+                        if _tank.name in pixie.name and not _tank.dying:
                             _tank.frozen = False
-                    pixie.name = "thawing"
+                    pixie.name = "thawing-banish"
                     pixie.set_frames(self.Spell_ice_frames[1])
                     pixie.frame_wait = 1/60
-                    self.spell_cooldown = time.time()
+                    self.spell_cooldown_timer = time.time()
                     self.remove_effect_pixie("spellbook")
                     if not self.dying:
                         self.frozen = False
                         if not self.player_tank:
                             self.pick_move_or_shoot(_tanks) 
-            elif pixie.name.lower() == "thawing":
+            elif "wolf" in pixie.name.lower():
+                if self.spell_active:
+                    if "-summon" in pixie.name.lower():
+                        if pixie.animation_finished:
+                            pixie.screen_displacement = self.screen_displacement*1.5
+                            pixie.set_frames(self.Spell_wolf_frames["howl"])
+                            pixie.fix_snail_pix()
+                            pixie.frame_wait = 1/5
+                            pixie.name = "wolf-howl"
+                            if self.sts.sound_on:
+                                self.sts.sounds["wolf howl"].play()
+                    elif "-howl" in pixie.name.lower():
+                        if pixie.animation_finished:
+                            pixie.set_frames(self.Spell_wolf_frames["walk"])
+                            pixie.fix_snail_pix()
+                            pixie.name = "wolf-walk"
+                            pixie.animate_repeat = True
+                            pixie.animate = False
+                            pixie.frame_wait = 1/30
+                            pixie.frame_timer = time.time()
+                            self.spell_timer = time.time()
+                    elif "-walk" in pixie.name.lower():
+                        if ( time.time() - self.spell_timer ) > 10*settings.DEFAULT_SPELL_TIME:
+                            pixie.name = "spirit-banish"
+                            pixie.screen_displacement = self.screen_displacement
+                            pixie.set_frames(self.Spell_wolf_frames["summon"])
+                            pixie.fix_snail_pix()
+                            pixie.frame_wait = 1/10
+                            pixie.animate = True
+                            pixie.animate_repeat = False
+                            self.spell_active = False
+                            self.spell_cooldown_timer = time.time()
+                            self.remove_effect_pixie("scroll")
+                        elif ( time.time() - pixie.frame_timer ) > \
+                            pixie.frame_wait:
+
+                            pixie.frame_timer = time.time()
+                            if pixie.moving_CW:
+                                pixie.move_CW()
+                            else:
+                                pixie.move_CCW()
+
+                            for _tank in _tanks:
+                                if pixie.check_hit(_tank):
+                                    good_hit = False
+                                    ang_btwn = cosmos.angle_between(
+                                        _tank.pos_angle, pixie.pos_angle)
+                                    if pixie.moving_CW:
+                                        if ang_btwn <= 0:
+                                            good_hit = True
+                                    else:
+                                        if ang_btwn >= 0:
+                                            good_hit = True
+                                    if good_hit:
+                                        pixie.name = "wolf-bite"
+                                        pixie.set_frames(self.Spell_wolf_frames["bite"])
+                                        pixie.fix_snail_pix()
+                                        pixie.frame_wait = 1/10
+                                        pixie.animate = True
+                                        pixie.animate_repeat = False
+                                        break
+
+                    elif "-bite" in pixie.name.lower():
+                        if pixie.animation_finished:
+                            if self.sts.sound_on:
+                                self.sts.sounds["wolf bite"].play()
+                            good_hit = False
+                            for _tank in _tanks:
+                                if pixie.check_hit(_tank):
+                                    ang_btwn = cosmos.angle_between(
+                                        _tank.pos_angle, pixie.pos_angle)
+                                    if pixie.moving_CW:
+                                        if ang_btwn <= 0:
+                                            good_hit = True
+                                    else:
+                                        if ang_btwn >= 0:
+                                            good_hit = True
+                                    if good_hit:
+                                        _tank.dying = True
+                                        pixie.name = "spirit-banish"
+                                        pixie.screen_displacement = self.screen_displacement
+                                        pixie.set_frames(self.Spell_wolf_frames["summon"])
+                                        pixie.fix_snail_pix()
+                                        pixie.frame_wait = 1/10
+                                        pixie.animate = True
+                                        self.spell_active = False
+                                        self.spell_cooldown_timer = time.time()
+                                        self.remove_effect_pixie("scroll")
+                            if not good_hit:
+                                pixie.set_frames(self.Spell_wolf_frames["walk"])
+                                pixie.fix_snail_pix()
+                                pixie.name = "wolf-walk"
+                                pixie.animate_repeat = True
+                                pixie.animate = False
+                                pixie.frame_wait = 1/30
+                                pixie.frame_timer = time.time()
+                        
+                else:
+                    pixie.name = f"{self.name}'s spirit-banish"
+                    pixie.screen_displacement = self.screen_displacement
+                    pixie.set_frames(self.Spell_wolf_frames["summon"])
+                    pixie.fix_snail_pix()
+                    pixie.animate = True
+                    pixie.animate_repeat = False
+                    pixie.frame_wait = 1/30
+                    self.spell_cooldown_timer = time.time()
+            elif "shock" in pixie.name.lower():
+                if not pixie.animation_finished and not self.spell_active:
+                    self.spell_active = True
                 if pixie.animation_finished:
                     pixies_to_remove.append(pixie)
-            elif "teleport" in pixie.name.lower():
-                if pixie.animation_finished:
-                    pixies_to_remove.append(pixie)
-            elif "clone" in pixie.name.lower():
+                    self.frozen = False
+                    self.spell_active = False
+                    self.remove_effect_pixie("spellbook")
+                    self.spell_cooldown_timer = time.time()
+                    if not self.player_tank:
+                        self.pick_move_or_shoot(_tanks)
+                else:
+                    for _tank in _tanks:
+                        if self.get_dist(_tank.x, _tank.y) < pixie.radius \
+                        and _tank.name != self.name:
+                            _tank.dying = True 
+            elif "-banish" in pixie.name.lower():
                 if pixie.animation_finished:
                     pixies_to_remove.append(pixie)
             elif pixie.name.lower() == "scroll":
+                pixie.pix = self.scroll_pix
                 pixie.pix_rotate = self.pix_rotate
                 pixie.screen_x = self.screen_x
                 pixie.screen_y = self.screen_y
+                # pixie.screen_rad = self.screen_rad / 2
                 pixie.displace_pix(
-                    self.screen_displacement*2.5, (self.homeworld.screen_x, self.homeworld.screen_y) )
-                if ( time.time() - pixie.frame_timer ) > settings.DEFAULT_SCROLL_TIME:
+                    self.screen_displacement*2, (self.homeworld.screen_x, self.homeworld.screen_y) )
+                pixie.transform_pix()
+                if ( time.time() - pixie.frame_timer ) > settings.DEFAULT_SCROLL_TIME and not self.spell_active:
                     pixies_to_remove.append(pixie)
             elif pixie.name.lower() == "spellready icon":
                 
@@ -1103,6 +1514,7 @@ class Tank (cosmos.Celestial):
         if self.dying:
             if not self.first_death:
                 self.first_death = True
+                self.invulnerable = False
                 self.frozen = True
                 self.spell_active = False
                 self.animate = True
@@ -1257,10 +1669,10 @@ class Tank (cosmos.Celestial):
         if self.check_spell_ready():
             for _tank in _tanks:
                 if _tank.name != self.name:
-  
                     _tank.frozen = True
-                    _tank.spell_active = False
-                    _tank.cooldown_timer = time.time()
+                    if _tank.spell_active:
+                        _tank.spell_active = False
+                        _tank.spell_cooldown_timer = time.time()
 
                     self.effect_pixies.append(cosmos.Celestial(self.sts))
                     self.effect_pixies[-1].name = f"ice for {_tank.name}"
@@ -1284,11 +1696,11 @@ class Tank (cosmos.Celestial):
                 self.sts.sounds["cast spell"].play()
             self.spell_timer = time.time()
 
-    def Spell_teleport_snail(self):
+    def Spell_teleport_snail(self, _tanks):
 
         if self.check_spell_ready():
             self.effect_pixies.append(cosmos.Celestial(self.sts))
-            self.effect_pixies[-1].name = f"{self.name}'s origin teleport puff"
+            self.effect_pixies[-1].name = f"{self.name}'s origin teleport-banish"
             self.effect_pixies[-1].pix_rotate = self.pix_rotate
             self.effect_pixies[-1].screen_x = self.screen_x
             self.effect_pixies[-1].screen_y = self.screen_y
@@ -1311,17 +1723,18 @@ class Tank (cosmos.Celestial):
             self.get_surface_pos()
             self.reset_default_launch()
             self.fix_snail_pix()
-            self.transform_pix()
             self.load_frame()
 
             self.read_scroll()
-            self.spell_cooldown = time.time()
+            self.spell_cooldown_timer = time.time()
             self.remove_effect_pixie("spellready icon")
+            if not self.player_tank:
+                self.pick_move_or_shoot(_tanks)
             if self.sts.sound_on:
                 self.sts.sounds["cast spell"].play()
 
             self.effect_pixies.append(cosmos.Celestial(self.sts))
-            self.effect_pixies[-1].name = f"{self.name}'s destination teleport puff"
+            self.effect_pixies[-1].name = f"{self.name}'s destination teleport puff-banish"
             self.effect_pixies[-1].pix_rotate = self.pix_rotate
             self.effect_pixies[-1].screen_x = self.screen_x
             self.effect_pixies[-1].screen_y = self.screen_y
@@ -1351,9 +1764,9 @@ class Tank (cosmos.Celestial):
         
         first_ball = self.find_first_armed_ball()
         
-        if self.check_spell_ready() and first_ball:
+        if self.check_spell_ready() and first_ball and "-fireball" not in first_ball.name.lower():
             self.effect_pixies.append(cosmos.Celestial(self.sts))
-            self.effect_pixies[-1].name = f"{self.name}'s {first_ball.name}'s clone puff"
+            self.effect_pixies[-1].name = f"{self.name}'s {first_ball.name}'s clone-banish"
             self.effect_pixies[-1].screen_x = first_ball.screen_x
             self.effect_pixies[-1].screen_y = first_ball.screen_y
             self.effect_pixies[-1].screen_rad = first_ball.screen_rad*1.5
@@ -1409,7 +1822,6 @@ class Tank (cosmos.Celestial):
                     self.sts.write_to_log(log_text)
            
             self.read_scroll()
-            self.spell_cooldown = time.time()
             self.remove_effect_pixie("spellready icon")
             if self.sts.sound_on:
                 self.sts.sounds["cast spell"].play()
@@ -1421,12 +1833,84 @@ class Tank (cosmos.Celestial):
         if self.check_spell_ready() and big_ball:
             big_ball.explode_radius *= settings.DEFAULT_BIG_BALL_GROWTH
             big_ball.name += "-big"
+            
+            self.spell_active = True
+            self.read_scroll()
+            self.remove_effect_pixie("spellready icon")
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
 
-        self.read_scroll()
-        self.spell_cooldown = time.time()
-        self.remove_effect_pixie("spellready icon")
-        if self.sts.sound_on:
-            self.sts.sounds["cast spell"].play()        
+    def Spell_homing_fireball(self, _tanks):
+        
+        fireball = self.find_chambered_ball()
+
+        if self.check_spell_ready() and fireball:
+            self.target = self.farthest_target(_tanks)
+            fireball.fuse_length = settings.DEFAULT_FIREBALL_FUSE_TIME
+            fireball.explode_radius = 3*settings.DEFAULT_EXPLODE_RADIUS
+            fireball.name += f"-Fireball targeting [[[{self.target.name}]]]"
+            fireball.set_frames(self.Spell_fireball_frames["armed"])
+            fireball.pix = False
+
+            self.spell_active = True
+            self.read_scroll()
+            # using fireball makes cooldown take longer
+            self.remove_effect_pixie("spellready icon")
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
+
+    def Spell_shock_strike(self):
+        if self.check_spell_ready():
+            self.read_spellbook()
+            self.effect_pixies.append(cosmos.Celestial(self.sts))
+            self.effect_pixies[-1].name = f"{self.name}'s shock"
+            self.effect_pixies[-1].pix_rotate = self.pix_rotate
+            self.effect_pixies[-1].screen_x = self.screen_x
+            self.effect_pixies[-1].screen_y = self.screen_y
+            self.effect_pixies[-1].displace_pix(
+                0.25*self.screen_displacement, (self.homeworld.screen_x, self.homeworld.screen_y) )
+            self.effect_pixies[-1].radius = 4*settings.DEFAULT_EXPLODE_RADIUS
+            self.effect_pixies[-1].set_screen_radius()
+            self.effect_pixies[-1].frame_wait = 1/30
+            self.effect_pixies[-1].frame_timer = time.time()        
+            self.effect_pixies[-1].set_frames(self.Spell_shock_frames)
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
+
+            self.frozen = True
+            self.spell_active = True
+            self.remove_effect_pixie("spellready icon")
+
+    def Spell_summon_wolf(self):
+
+        if self.check_spell_ready():
+            self.effect_pixies.append(Tank(self.sts, self.celestials))
+            self.effect_pixies[-1].name = f"{self.name}'s wolf-summon"
+            self.effect_pixies[-1].snail_color = self.snail_color
+            self.effect_pixies[-1].pix_rotate = self.pix_rotate
+
+            if not self.moving_CW:
+                self.effect_pixies[-1].pos_angle = self.pos_angle + settings.DEFAULT_STEP_AWAY_RAD
+            else:
+                self.effect_pixies[-1].pos_angle = self.pos_angle - settings.DEFAULT_STEP_AWAY_RAD      
+            self.effect_pixies[-1].get_surface_pos()
+            self.effect_pixies[-1].moving_CW = self.moving_CW
+            self.effect_pixies[-1].radius = settings.DEFAULT_EXPLODE_RADIUS*3
+            self.effect_pixies[-1].set_screen_radius()
+            self.effect_pixies[-1].screen_displacement = self.screen_displacement
+            self.effect_pixies[-1].fix_snail_pix()             
+            # self.effect_pixies[-1].screen_rad = self.screen_rad*1.5
+        
+            self.effect_pixies[-1].frame_wait = 1/10      
+            self.effect_pixies[-1].set_frames(self.Spell_wolf_frames["summon"])
+            self.effect_pixies[-1].animate = True
+            self.effect_pixies[-1].animate_repeat = False
+
+            self.spell_active = True
+            self.read_scroll()
+            self.remove_effect_pixie("spellready icon")
+            if self.sts.sound_on:
+                self.sts.sounds["cast spell"].play()
 
     def remove_effect_pixie(self, pixie_to_remove):
         removed = False        
@@ -1449,7 +1933,7 @@ class Tank (cosmos.Celestial):
         if isinstance(pixie_to_find, str) and len(self.effect_pixies) > 0:
             for pixie in self.effect_pixies:
                 if pixie_to_find.lower() in pixie.name.lower():
-                    pixie_found = True
+                    pixie_found = pixie
 
         return pixie_found
 

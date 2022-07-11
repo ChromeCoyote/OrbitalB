@@ -59,6 +59,8 @@ DEFAULT_POSITION_ANGLE = math.pi / 2     # initial posistion on surface in radia
 DEFAULT_FIRING_ANGLE = 0       # initial firing angle in radians
 
 DEFAULT_FUSE_TIME = 1               # fuse lasts for 1 second, after which cannonball becomes armed
+DEFAULT_FIREBALL_FUSE_TIME = 5
+DEFAULT_FIREBALL_THRUST = 0.005          # Fireball thrust is approx. 1 g
 DEFAULT_EXPLODE_TIME = 2               # cannonballs explode for this many seconds
 DEFAULT_GIVEN_AWAY_TIME = 10           # how long cannonballs last when shooting tank dies
 DEFAULT_FLASH_CHANCE = 0.8            # cannonballs flash new color when exploding
@@ -136,8 +138,8 @@ SIMPLE_SPEED_GUESS_LOWER = 0.8
 SIMPLE_SPEED_GUESS_HIGHER = 0.95
 
 # Cannonballs have as much energy as 1 million Czar Bombs
-DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e10
-# DEFAULT_EXPLODE_ENERGY = 0
+# DEFAULT_EXPLODE_ENERGY = CZAR_BOMBA_ENERGY / 2e12
+DEFAULT_EXPLODE_ENERGY = 0
 
 DEFAULT_EXPLODE_RADIUS = LUNA_RADIUS / 2 # explosion is 1/4 radius of Moon!
 
@@ -176,20 +178,24 @@ MOVE_TANK_CCW = pygame.K_LEFT
 DETONATE_BALL = pygame.K_DELETE
 EJECT_BALL = pygame.K_BACKSLASH
 EXTI_MENU = pygame.K_ESCAPE
-SPELL_SHIELD = pygame.K_s
+SPELL_SHIELD = pygame.K_a
 SPELL_GRAVITY = pygame.K_g
 SPELL_ICE = pygame.K_i
 SPELL_TELEPORT = pygame.K_t
 SPELL_METEOR = pygame.K_m
 SPELL_CLONE = pygame.K_c
 SPELL_BIG_BALL = pygame.K_b
+SPELL_WOLF = pygame.K_w
+SPELL_FIREBALL = pygame.K_f
+SPELL_SHOCK = pygame.K_s
 
+AI_NATURES = ["Archer", "Mage", "Berserker", "Rogue"]
 DEFAULT_AI_TOLERANCE = 1
 # How often enemy tank will choose to fire rather than move
-DEFAULT_AI_FIRE_WEIGHT = 0.8
-DEFAULT_AI_SPELL_WEIGHT = 0.2
+DEFAULT_AI_FIRE_WEIGHT = 0.35
+DEFAULT_AI_SPELL_WEIGHT = 0.35
 # How long in seconds that AI tank will wait to make an action to slow it down
-DEFAULT_AI_WAIT_TIME = 0
+DEFAULT_AI_WAIT_TIME = 1/16
 # AI Tanks will avoid armed or exploding balls 
 # this fraction of the homeworld's radius away
 DEFAULT_DANGER_RATIO = 0.2
@@ -223,6 +229,9 @@ ICE_PATH = "Pix/Magic/Ice"
 TELEPORT_PATH = "Pix/Magic/Teleport"
 METEOR_PATH = "Spells/Meteor"
 CLONE_PATH = "Pix/Magic/Clone"
+WOLF_PATH = "Pix/Magic/Wolf"
+FIREBALL_PATH = "Pix/Magic/Fireball"
+SHOCK_PATH = "Pix/Magic/Shock"
 
 SPELLREADY_ICON_PATH = "Spells/Spellready_Icon/spellready.png"
 SCROLL_ICON_PATH = "Pix/Magic/Scroll/scroll.png"
@@ -232,7 +241,9 @@ SOUNDS_PATHS = {
     "cannonball-explode": "Sounds/cannonball_explode.wav",
     "cast spell": "Sounds/cast_spell.wav",
     "cannonball-fire": "Sounds/cannonball_fire.wav",
-    "cannonball-armed": "Sounds/cannonball_armed.wav"
+    "cannonball-armed": "Sounds/cannonball_armed.wav",
+    "wolf howl": "Sounds/wolf_howl.wav",
+    "wolf bite": "Sounds/wolf_bite.wav"
 }
 
 DEFAULT_BALL_PIX_SCREEN_RAD = 10
@@ -308,7 +319,7 @@ class Settings:
         """Initialize the game's settings."""
         pygame.init()       # inialize pygame modules
 
-        self.debug = True   # debugging on for now...
+        self.debug = False   # debugging off by default...
 
          # Stuff for game log
         self.now = datetime.datetime.now()

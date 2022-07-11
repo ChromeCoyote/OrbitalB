@@ -122,11 +122,20 @@ class Engine:
 
             if player_tank:
                 self.tanks[-1].player_tank = True
-                self.tanks[-1].name = f"Tank #{num_tanks} {self.tanks[-1].snail_color} Player Tank"
+                self.tanks[-1].name = f"Snail #{num_tanks} {self.tanks[-1].snail_color} Player"
             else:
                 self.tanks[-1].player_tank = False
-                self.tanks[-1].name = f"Tank #{num_tanks} {self.tanks[-1].snail_color} AI Tank"
-                # self.tanks[-1].pick_move_or_shoot(self.tanks)
+                self.tanks[-1].name = f"Snail #{num_tanks} {self.tanks[-1].snail_color} " \
+                    + random.choice(settings.AI_NATURES)
+                if "archer" in self.tanks[-1].name.lower():
+                    self.tanks[-1].fire_weight = 0.6
+                    self.tanks[-1].spell_weight = 0.1
+                elif "mage" in self.tanks[-1].name.lower():
+                    self.tanks[-1].spell_weight = 0.6
+                    self.tanks[-1].fire_weight = 0.1
+                elif "berserker" in self.tanks[-1].name.lower():
+                    self.tanks[-1].fire_weight = 0.3
+                    self.tanks[-1].spell_weight = 0.1
 
             self.tanks[-1].screen_rad = settings.DEFAULT_SNAIL_SCREEN_RADIUS
             self.tanks[-1].load_snail_frames()
@@ -203,13 +212,19 @@ class Engine:
                         elif event.key == tank.Spell_ice:
                             tank.Spell_ice_counterspell(self.tanks)
                         elif event.key == tank.Spell_teleport:
-                            tank.Spell_teleport_snail()
+                            tank.Spell_teleport_snail(self.tanks)
                         elif event.key == tank.Spell_meteor:
                             tank.Spell_meteor_portal(self.tanks)
                         elif event.key == tank.Spell_clone:
                             tank.Spell_clone_cannonball()
                         elif event.key == tank.Spell_big_ball:
                             tank.Spell_big_cannonball()
+                        elif event.key == tank.Spell_wolf:
+                            tank.Spell_summon_wolf()
+                        elif event.key == tank.Spell_fireball:
+                            tank.Spell_homing_fireball(self.tanks)
+                        elif event.key == tank.Spell_shock:
+                            tank.Spell_shock_strike()
 
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:

@@ -84,6 +84,7 @@ def add_celestial_explosion(_celestial, _tanks):
     
     # find random frames from default explosion sprite's directory
     _tanks[0].balls[-1].pix_dir = settings.choose_random_directory(settings.EXPLOSIONS_PATH)
+    _tanks[0].balls[-1].frame_wait = 1/30
     _tanks[0].balls[-1].load_frames()
     _tanks[0].balls[-1].animate = True
     _tanks[0].balls[-1].animate_repeat = True
@@ -808,6 +809,11 @@ class Celestial:
         self.pix = pygame.transform.flip(self.pix, self.pix_flip[0], self.pix_flip[1])
 
     def displace_pix(self, displace_mag, screen_xy):
+        """ Displace pix or frames in a vector """
+
+        # Displaces along a vector pointing from point screen_xy to self a 
+        # magnitude of displace_mag pixels
+
         displace_vector = numpy.subtract(
             (self.screen_x, self.screen_y), (screen_xy[0], screen_xy[1]) )
         displace_vector = numpy.multiply(displace_mag, normalize(displace_vector) )
@@ -817,8 +823,8 @@ class Celestial:
     def animation(self):
         if self.animate and isinstance(self.pix_frames, list) and not self.animation_finished:
             if ( time.time() - self.frame_timer) > self.frame_wait:
-                        self.next_frame()
-                        self.frame_timer = time.time()
+                self.next_frame()
+                self.frame_timer = time.time()
 
 # ********************************************************************************************************** 
 # *************************** CANNONBALL!!! ****************************************************************
@@ -859,6 +865,7 @@ class Cannonball(Celestial):
 
         # keep track of fuse, explosion timers
         self.fuse_start = 0
+        self.fuse_length = settings.DEFAULT_FUSE_TIME
         self.explode_start = 0
         # To keep track of when to exploded cannonballs of destroyed tanks
         self.given_away_start = 0
@@ -890,20 +897,32 @@ class Cannonball(Celestial):
         """ Get speed of cannnonball """
         self.speed = math.sqrt(self.vx**2 + self.vy**2)
             
-    def explode(self):
+    def explode(self, fire_frames):
         """ Trigger explosion, reset flags and parameters accordingly. """
         # self.active = False
         self.armed = False
         self.exploding = True
-        self.animate = False
-        self.pix = False
-        # self.radius = self.explode_radius
-        # self.screen_rad = self.explode_radius * self.sts.screen_dist_scale
-        # self.set_screen_radius()
-        
-        # keep track of explosion time.
-        self.explode_start = time.time()
-        # keep track of explosion color switching time
+        if "-fireball" in self.name.lower():
+            self.animate_repeat = False
+            self.frame_wait = 1/10
+            self.radius = self.explode_radius
+            self.set_screen_radius()
+            if self.stuck_to_celestial:
+                self.get_surface_pos()
+                self.displace_pix(
+                    0.9*self.screen_rad, (self.stuck_to_celestial.screen_x, \
+                        self.stuck_to_celestial.screen_y) )
+                self.pix_rotate = self.pos_angle - math.pi/2
+                self.set_frames(fire_frames["surface explode"])
+            else:
+                self.set_frames(frames = fire_frames["space explode"])
+        else:       
+            self.animate = False
+            self.pix = False
+            # keep track of explosion time.
+            self.explode_start = time.time()
+                
+        # keep track of explosion color switching time or animation time
         self.frame_timer = time.time()
 
         if self.sts.sound_on:
@@ -946,39 +965,55 @@ class Cannonball(Celestial):
        
         # Check what happens to each celestial
         for celestial in self.celestials:
-            if celestial.name != self.name and super().check_hit(celestial):
+            if self.check_hit(celestial):
                 hit = True
                 if self.armed:
-                    self.explode()
-                elif self.exploding:
-                    if not self.stuck_to_celestial:
+                    if celestial.homeworld:
                         self.stick_to_celestial(celestial)
-                        if not self.celestial_explosion:
-                            # Nudge hit celestial based on magnitude of explosion force
-                            (ax, ay) = super().get_unit(celestial.x, celestial.y)
-                            ax *= self.explode_force_mag
-                            ay *= self.explode_force_mag
-                            celestial.vx += ax * self.sts.tres
-                            celestial.vy += ay * self.sts.tres
-                            # If the celestial is too small...
-                            if celestial.mass < self.sts.crit_explode_mass:
-                                # Blow it up!
-                                add_celestial_explosion(celestial, _tanks)
-                                celestial.break_self(
-                                    self.celestials, celestial.get_unit(self.x, self.y))
-                                # Free stuck explosion from destroyed celestial
-                                self.stuck_to_celestial = False
-                                # self.exploding = False
-                                # self.active = False
-                        elif not celestial.homeworld:
-                            # Mark destroyed celestial for removal
-                            # (If not homeworld, of course...)
-                            self.stuck_to_celestial = False
+                    self.explode(_tanks[0].Spell_fireball_frames)
+                elif self.exploding:
+                    if not self.stuck_to_celestial and celestial.homeworld:
+                        self.stick_to_celestial(celestial)
+                    if not self.celestial_explosion:
+                        # Nudge hit celestial based on magnitude of explosion force
+                        (ax, ay) = super().get_unit(celestial.x, celestial.y)
+                        ax *= self.explode_force_mag
+                        ay *= self.explode_force_mag
+                        celestial.vx += ax * self.sts.tres
+                        celestial.vy += ay * self.sts.tres
+                        # If the celestial is too small...
+                        if celestial.mass < self.sts.crit_explode_mass:
+                            # Blow it up!
+                            add_celestial_explosion(celestial, _tanks)
+                            celestial.break_self(
+                                self.celestials, celestial.get_unit(self.x, self.y))
+                            # Free stuck explosion from destroyed celestial
+                            # self.stuck_to_celestial = False
+                            # self.exploding = False
+                            # self.active = False
+                    # elif not celestial.homeworld:
+                        # Mark destroyed celestial for removal
+                        # (If not homeworld, of course...)
+                        # self.stuck_to_celestial = False
                 else:
                     self.active = False
                 
         # Check to see if tanks are hit and destroy it if so
         for tank in _tanks:
+            for pixie in tank.effect_pixies:
+                if "wolf" in pixie.name.lower() \
+                and self.exploding \
+                and super().check_hit(pixie):
+                    pixie.name = "spirit-banish"
+                    pixie.screen_displacement = tank.screen_displacement
+                    pixie.set_frames(tank.Spell_wolf_frames["summon"])
+                    pixie.fix_snail_pix()
+                    pixie.animate = True
+                    pixie.animate_repeat = False
+                    pixie.frame_wait = 1/10
+                    tank.spell_active = False
+                    tank.remove_effect_pixie("scroll")
+                    tank.spell_cooldown_timer = time.time()
             if self.exploding and super().check_hit(tank) and not tank.invulnerable:
                 hit = True
                 tank.dying = True

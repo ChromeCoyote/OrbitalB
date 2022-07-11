@@ -22,13 +22,11 @@ MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-MainEngine.create_tank(False)
-MainEngine.create_tank(False)
-MainEngine.create_tank(False)
+MainEngine.create_tank(True)
+MainEngine.create_tank(True)
+MainEngine.create_tank(True)
 
 destroyed_tanks = False
-
-menu_wait = False
 
 while not MainEngine.game_over:
 
@@ -77,7 +75,7 @@ while not MainEngine.game_over:
     # draw FPS to measure performance
     if MainEngine.sts.debug:
         MainEngine.display_temp_text(
-            (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midbottom, settings.DEFAULT_FONT_COLOR) )   
+            (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
         MainEngine.tanks[0].winner = True

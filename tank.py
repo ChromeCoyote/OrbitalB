@@ -497,15 +497,15 @@ class Tank (cosmos.Celestial):
                     # special case for fireballs, grab frames from new host
                     # before frames destroyed with old host
                     if "-fireball" in ball.name.lower():
-                        if ball.exploding:
-                            if ball.stuck_to_celestial:
-                                ball.pix_frames = tank.Spell_fireball_frames["surface explode"]
-                                ball.load_frame()
-                            else:
-                                ball.pix_frames = tank.Spell_fireball_frames["space explode"]
-                                ball.load_frame()
-                        else:
-                            ball.explode(tank.Spell_fireball_frames)
+                        # if ball.exploding:
+                        #     if ball.stuck_to_celestial:
+                        #         ball.pix_frames = tank.Spell_fireball_frames["surface explode"]
+                        #         ball.load_frame()
+                        #     else:
+                        #         ball.pix_frames = tank.Spell_fireball_frames["space explode"]
+                        #         ball.load_frame()
+                        # else:
+                        ball.explode(tank.Spell_fireball_frames)
                     
                     tank.balls.append(ball)
     

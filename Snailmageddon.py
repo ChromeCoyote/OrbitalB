@@ -1,6 +1,6 @@
-import settings, pygame, sys
+import settings, pygame
 import tank as _tank
-import cosmos, engine
+import cosmos, engine, gc
 
 counts = {}
 loops = 0
@@ -110,3 +110,4 @@ while True:
         print(counts)        
         del MainEngine
         del MainSettings
+        gc.collect()

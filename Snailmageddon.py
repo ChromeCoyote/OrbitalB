@@ -1,6 +1,6 @@
 import settings, pygame
 import tank as _tank
-import cosmos, engine, gc
+import cosmos, engine, gc, traceback
 
 counts = {}
 loops = 0
@@ -105,6 +105,8 @@ while True:
             MainEngine.sts.output_log_to_file()
     except Exception as err:
         print(err)
+        print("\n")
+        print(traceback.format_exc())
         counts["errors"] += 1
     finally:
         print(counts)        

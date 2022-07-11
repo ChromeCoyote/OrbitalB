@@ -227,9 +227,6 @@ class Celestial:
         self.pix_flip = [False, False]
         self.pix_offset_x = 0       
         self.pix_offset_y = 0
-
-        # holds fireball frames
-        self.fireball_frames = False
     
         # self.pix_rings = False
 
@@ -888,6 +885,9 @@ class Cannonball(Celestial):
         self.explode_energy = settings.DEFAULT_EXPLODE_ENERGY
         # self.explode_energy = 0
         self.explode_force_mag = self.explode_energy / self.explode_radius
+
+        # holds fireball frames
+        self.fireball_frames = False
                                   
     def update_celestials(self, celestials):
         """ update homewold values """

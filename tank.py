@@ -278,6 +278,7 @@ class Tank (cosmos.Celestial):
 
             # code to load sprite frames for new cannonball
             self.balls[-1].set_frames(self.ball_frames)
+            self.balls[-1].frame_wait = 1/30
             self.balls[-1].animate_repeat = True
             self.balls[-1].pix = False
 
@@ -343,7 +344,7 @@ class Tank (cosmos.Celestial):
             elif "-fireball" in found_chambered_ball.name.lower():
                 self.spell_active = False
                 self.spell_cooldown_timer = time.time()
-                found_chambered_ball.fireball_frames = self.fireball_frames
+                found_chambered_ball.fireball_frames = self.Spell_fireball_frames
 
             if self.sts.sound_on:
                 self.sts.sounds["cannonball-fire"].play()
@@ -1853,6 +1854,7 @@ class Tank (cosmos.Celestial):
             fireball.explode_radius = 3*settings.DEFAULT_EXPLODE_RADIUS
             fireball.name += f"-Fireball targeting [[[{self.target.name}]]]"
             fireball.set_frames(self.Spell_fireball_frames["armed"])
+            fireball.frame_wait = 1/60
             fireball.pix = False
 
             self.spell_active = True

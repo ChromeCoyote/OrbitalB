@@ -337,10 +337,13 @@ class Tank (cosmos.Celestial):
             self.targeting = False
             fire = True
 
-            if "-big" in found_chambered_ball.name.lower() \
-            or "-fireball" in found_chambered_ball.name.lower():
+            if "-big" in found_chambered_ball.name.lower():
                 self.spell_active = False
                 self.spell_cooldown_timer = time.time()
+            elif "-fireball" in found_chambered_ball.name.lower():
+                self.spell_active = False
+                self.spell_cooldown_timer = time.time()
+                found_chambered_ball.fireball_frames = self.fireball_frames
 
             if self.sts.sound_on:
                 self.sts.sounds["cannonball-fire"].play()
@@ -386,7 +389,7 @@ class Tank (cosmos.Celestial):
                         #    ball.color = settings.DEFAULT_ARMED_COLOR
                 if ball.armed and ball.given_away and not ball.celestial_explosion:
                         if ( time.time() - ball.given_away_start ) > settings.DEFAULT_GIVEN_AWAY_TIME:
-                            ball.explode(self.Spell_fireball_frames)
+                            ball.explode()
                 if ball.exploding:
                     if "-fireball" in ball.name.lower():
                         if ball.animation_finished:
@@ -422,7 +425,7 @@ class Tank (cosmos.Celestial):
                         ball.pix_rotate = math.atan2(target_vector[1], target_vector[0])
                         (ball.vx, ball.vy) = numpy.add(target_vector, (ball.vx, ball.vy))
                     else:
-                        ball.explode(self.Spell_fireball_frames)
+                        ball.explode()
 
                 ball.animation()               
                 ball.check_impact(tanks)
@@ -438,7 +441,7 @@ class Tank (cosmos.Celestial):
         blew_up = False
         for ball in self.balls:
             if ball.active and ball.armed and not blew_up and not ball.given_away:
-                ball.explode(self.Spell_fireball_frames)
+                ball.explode()
                 blew_up = True
         
         return blew_up
@@ -505,7 +508,7 @@ class Tank (cosmos.Celestial):
                         #         ball.pix_frames = tank.Spell_fireball_frames["space explode"]
                         #         ball.load_frame()
                         # else:
-                        ball.explode(tank.Spell_fireball_frames)
+                        ball.explode()
                     
                     tank.balls.append(ball)
     

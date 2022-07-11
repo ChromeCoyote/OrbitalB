@@ -227,6 +227,9 @@ class Celestial:
         self.pix_flip = [False, False]
         self.pix_offset_x = 0       
         self.pix_offset_y = 0
+
+        # holds fireball frames
+        self.fireball_frames = False
     
         # self.pix_rings = False
 
@@ -897,7 +900,7 @@ class Cannonball(Celestial):
         """ Get speed of cannnonball """
         self.speed = math.sqrt(self.vx**2 + self.vy**2)
             
-    def explode(self, fire_frames):
+    def explode(self):
         """ Trigger explosion, reset flags and parameters accordingly. """
         # self.active = False
         self.armed = False
@@ -913,9 +916,9 @@ class Cannonball(Celestial):
                     0.9*self.screen_rad, (self.stuck_to_celestial.screen_x, \
                         self.stuck_to_celestial.screen_y) )
                 self.pix_rotate = self.pos_angle - math.pi/2
-                self.set_frames(fire_frames["surface explode"])
+                self.set_frames(self.fireball_frames["surface explode"])
             else:
-                self.set_frames(frames = fire_frames["space explode"])
+                self.set_frames(self.fireball_frames["space explode"])
         else:       
             self.animate = False
             self.pix = False
@@ -970,7 +973,7 @@ class Cannonball(Celestial):
                 if self.armed:
                     if celestial.homeworld:
                         self.stick_to_celestial(celestial)
-                    self.explode(_tanks[0].Spell_fireball_frames)
+                    self.explode()
                 elif self.exploding:
                     if not self.stuck_to_celestial and celestial.homeworld:
                         self.stick_to_celestial(celestial)

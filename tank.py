@@ -499,10 +499,10 @@ class Tank (cosmos.Celestial):
                     if "-fireball" in ball.name.lower():
                         if ball.exploding:
                             if ball.stuck_to_celestial:
-                                ball.frames = tank.Spell_fireball_frames["surface explode"]
+                                ball.pix_frames = tank.Spell_fireball_frames["surface explode"]
                                 ball.load_frame()
                             else:
-                                ball.frames = tank.Spell_fireball_frames["space explode"]
+                                ball.pix_frames = tank.Spell_fireball_frames["space explode"]
                                 ball.load_frame()
                         else:
                             ball.explode(tank.Spell_fireball_frames)

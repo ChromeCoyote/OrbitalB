@@ -72,7 +72,7 @@ class Engine:
                 settings.LUNA_RADIUS, new_moon_color)
             speed = math.sqrt(settings.GRAV_CONST * self.celestials[0].mass / \
                 self.celestials[-1].radius) / 3
-            orbit_dist = self.celestials[0].radius * 2
+            orbit_dist = self.celestials[0].radius * 3
             orbit_ang = random.uniform(0, round(2*math.pi, 2))
             self.celestials[-1].set_xy(orbit_dist*math.cos(orbit_ang), orbit_dist*math.sin(orbit_ang))
             self.celestials[-1].set_v(-speed*math.sin(orbit_ang), speed*math.cos(orbit_ang))
@@ -225,6 +225,8 @@ class Engine:
                             tank.Spell_homing_fireball(self.tanks)
                         elif event.key == tank.Spell_shock:
                             tank.Spell_shock_strike()
+                        elif event.key == tank.kill_self:
+                            tank.dying = True
 
         for tank in self.tanks:
             if not tank.player_tank and not tank.frozen:

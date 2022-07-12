@@ -29,6 +29,7 @@ while True:
 
         # create moons
         MainEngine.create_moon()
+        MainEngine.create_moon()
 
         MainEngine.create_tank(False)
         MainEngine.create_tank(False)
@@ -81,12 +82,12 @@ while True:
 
             MainEngine.manage_events(pygame.event.get())    
             # draw FPS to measure performance
-            if MainEngine.sts.debug:
-                MainEngine.display_temp_text(
-                    (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
+            MainEngine.display_temp_text(
+                (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
                 
             if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
-                MainEngine.tanks[0].winner = True
+                if not MainEngine.tanks[0].dying:
+                    MainEngine.tanks[0].winner = True
                 MainEngine.tanks[0].remove_effect_pixie("spellready icon")
                 MainEngine.game_over = True
                 for role in settings.AI_NATURES:
@@ -95,6 +96,8 @@ while True:
 
             elif not MainEngine.tanks:
                 MainEngine.game_over = True
+
+            # gc.collect()
 
             pygame.display.flip()
 

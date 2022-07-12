@@ -948,11 +948,12 @@ class Cannonball(Celestial):
 
     def get_surface_pos(self):
         """ set launch point of cannonball on homeworld based on position angle (pos_angle) """
-        self.x = self.stuck_to_celestial.radius * math.cos(self.pos_angle) \
-            + self.stuck_to_celestial.x
-        self.y = self.stuck_to_celestial.radius * math.sin(self.pos_angle) \
-            + self.stuck_to_celestial.y
-        super().get_screenxy()
+        if self.stuck_to_celestial:
+            self.x = self.stuck_to_celestial.radius * math.cos(self.pos_angle) \
+                + self.stuck_to_celestial.x
+            self.y = self.stuck_to_celestial.radius * math.sin(self.pos_angle) \
+                + self.stuck_to_celestial.y
+            super().get_screenxy()
 
     def stick_to_celestial(self, celestial):
         """ Set parameters for cannonball stuck to a celestial """
@@ -971,19 +972,25 @@ class Cannonball(Celestial):
             if self.check_hit(celestial):
                 hit = True
                 if self.armed:
-                    if celestial.homeworld:
+                    
+                    if celestial.homeworld \
+                    or ("-fireball" in self.name.lower() and celestial.radius >= settings.LUNA_RADIUS):
                         self.stick_to_celestial(celestial)
+                    
                     self.explode()
                 elif self.exploding:
-                    if not self.stuck_to_celestial and celestial.homeworld:
+                    if celestial.homeworld \
+                    or ("-fireball" in self.name.lower() and celestial.mass >= settings.LUNA_MASS) \
+                    or self.celestial_explosion:
                         self.stick_to_celestial(celestial)
-                    if not self.celestial_explosion:
+                    
+                    elif not self.celestial_explosion and "-fireball" not in self.name.lower():
                         # Nudge hit celestial based on magnitude of explosion force
-                        (ax, ay) = super().get_unit(celestial.x, celestial.y)
-                        ax *= self.explode_force_mag
-                        ay *= self.explode_force_mag
-                        celestial.vx += ax * self.sts.tres
-                        celestial.vy += ay * self.sts.tres
+                        # (ax, ay) = super().get_unit(celestial.x, celestial.y)
+                        # ax *= self.explode_force_mag
+                        # ay *= self.explode_force_mag
+                        # celestial.vx += ax * self.sts.tres
+                        # celestial.vy += ay * self.sts.tres
                         # If the celestial is too small...
                         if celestial.mass < self.sts.crit_explode_mass:
                             # Blow it up!

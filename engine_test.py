@@ -1,4 +1,4 @@
-import settings, pygame, sys
+import settings, pygame, sys, gc
 import tank as _tank
 import cosmos, engine
 
@@ -14,17 +14,21 @@ MainEngine.create_homeworld()
 
 # create moons
 MainEngine.create_moon()
-# MainEngine.create_moon()
-# MainEngine.create_moon()
+MainEngine.create_moon()
+MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-MainEngine.create_tank(True)
-MainEngine.create_tank(True)
-MainEngine.create_tank(True)
+MainEngine.create_tank(False)
+MainEngine.create_tank(False)
+MainEngine.create_tank(False)
+
+# DEBUGGING:
+# MainEngine.tanks[1].frozen = True
+# MainEngine.tanks[2].frozen = True
 
 destroyed_tanks = False
 
@@ -78,7 +82,8 @@ while not MainEngine.game_over:
             (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
-        MainEngine.tanks[0].winner = True
+        if not MainEngine.tanks[0].dying:
+            MainEngine.tanks[0].winner = True
         MainEngine.tanks[0].remove_effect_pixie("spellready icon")
         MainEngine.game_over = True
     elif not MainEngine.tanks:

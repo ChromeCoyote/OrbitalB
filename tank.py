@@ -1,6 +1,6 @@
 # Code for projectile
 
-import pygame, math, random, numpy, time, os
+import pygame, math, random, numpy, time, os, scipy.optimize
 import settings, cosmos
 
 def check_tanks(tanks, _settings):
@@ -172,6 +172,7 @@ class Tank (cosmos.Celestial):
         self.Spell_wolf = settings.SPELL_WOLF
         self.Spell_fireball = settings.SPELL_FIREBALL
         self.Spell_shock = settings.SPELL_SHOCK
+        self.kill_self = settings.KILL_SELF
 
         # AI variables
         self.angle_guess = self.launch_angle
@@ -187,11 +188,13 @@ class Tank (cosmos.Celestial):
 
         self.screen_displacement = settings.DEFAULT_SNAIL_DISPLACEMENT_FACTOR*self.homeworld.screen_rad
      
-        # orbital constant
-        if self.homeworld:
-            self.mu = settings.GRAV_CONST*self.homeworld.mass
-        else:
-            self.mu = 0
+        # for angle finding function
+        self.g = settings.GRAV_CONST * self.homeworld.mass / (self.homeworld.radius**2)
+        self.target_surface_distance = 0
+        # factor for simplification, equal to:  g*d/v^2
+        self.A = 0
+        # factor for simplification, equal to:  (2 - vp^2)*vp^2
+        self.D = 0
 
     def fix_launch_velocity(self):
         if self.launch_speed < 0:
@@ -215,10 +218,6 @@ class Tank (cosmos.Celestial):
         for body in celestials:
             if body.homeworld == True:
                 self.homeworld = body
-        if self.homeworld:
-            self.mu = -settings.GRAV_CONST*self.homeworld.mass
-        else:
-            self.mu = 0
 
     def check_chamber(self):
         chamber_ready = 0
@@ -364,6 +363,15 @@ class Tank (cosmos.Celestial):
         for ball in self.balls:
             if ball.active:
                 ball.check_off_screen()
+                
+                if ball.stuck_to_celestial:
+                    found_body = False
+                    for body in self.celestials:
+                        if ball.stuck_to_celestial == body:
+                            found_body = True
+                    if not found_body:
+                        ball.stuck_to_celestial = False
+
                 if not ball.armed and not ball.exploding:
                     if ( time.time() - ball.fuse_start ) > ball.fuse_length:
                         ball.armed = True
@@ -501,17 +509,59 @@ class Tank (cosmos.Celestial):
                     # special case for fireballs, grab frames from new host
                     # before frames destroyed with old host
                     if "-fireball" in ball.name.lower():
-                        # if ball.exploding:
-                        #     if ball.stuck_to_celestial:
-                        #         ball.pix_frames = tank.Spell_fireball_frames["surface explode"]
-                        #         ball.load_frame()
-                        #     else:
-                        #         ball.pix_frames = tank.Spell_fireball_frames["space explode"]
-                        #         ball.load_frame()
-                        # else:
                         ball.explode()
-                    
                     tank.balls.append(ball)
+    
+    def ___give_balls___(self, tank):
+        if self.balls:
+            for ball in self.balls:
+                if not ball.chambered:
+                    ball.given_away = True
+                    ball.given_away_start = time.time()
+                    # special case for fireballs, grab frames from new host
+                    # before frames destroyed with old host
+                    if "-fireball" in ball.name.lower():
+                        tank.balls.append(cosmos.Cannonball(tank.sts, tank.celestials))
+                        new_ball = tank.balls[-1]
+                        new_ball.name = ball.name
+                        new_ball.given_away = True
+                        # new_ball.given_away_start = time.time()
+                        (new_ball.x, new_ball.y) = (ball.x, ball.y)
+                        (new_ball.vx, new_ball.vy) = (ball.vx, ball.vy)
+                        # (new_ball.screen_x, new_ball.screen_y) = (ball.screen_x, ball.screen.y)
+                        new_ball.get_screenxy()
+                        new_ball.active = ball.active
+                        new_ball.radius = ball.radius
+                        new_ball.explode_radius = ball.explode_radius
+                        new_ball.set_screen_radius()
+                        new_ball.pix_frame = ball.pix_frame
+                        new_ball.animate = ball.animate
+                        new_ball.fireball_frames = tank.Spell_fireball_frames
+
+                        if ball.exploding:
+                            new_ball.frame_wait = ball.frame_wait
+                            new_ball.frame_timer = ball.frame_timer
+                            new_ball.animate = True
+                            
+                            # new_ball.animate_repeat = False
+                            
+                            if ball.stuck_to_celestial:
+                                new_ball.stuck_to_celestal = ball.stuck_to_celestial
+                                new_ball.pix_frames = tank.Spell_fireball_frames["surface explode"]
+                                new_ball.get_surface_pos()
+                                new_ball.pix_rotate = new_ball.pos_angle - math.pi/2
+                                new_ball.displace_pix(
+                                    0.9*new_ball.screen_rad, (new_ball.stuck_to_celestial.screen_x, \
+                                    new_ball.stuck_to_celestial.screen_y) )
+                            else:
+                                new_ball.pix_frames = tank.Spell_fireball_frames["space explode"]
+                            
+                            new_ball.load_frame()
+                        else:
+                            new_ball.explode()
+                    
+                    else:
+                        tank.balls.append(ball)
     
     def pick_launch_angle(self):
         if self.target:
@@ -537,49 +587,59 @@ class Tank (cosmos.Celestial):
             self.speed_guess = random.uniform(
                 settings.SIMPLE_SPEED_GUESS_LOWER*self.escape_v, settings.SIMPLE_SPEED_GUESS_HIGHER*self.escape_v)
     
+    # def find_this_root(self, theta):
+    #     Y = ( math.sin(2*(theta)) / math.sqrt(1-self.D*( math.cos(theta)**2 )) )  - self.A
+    #     return Y
+
     def guess_launch_angle(self):
         guessed = False
-        if self.target:
+        
+        if self.target and self.guess_launch_speed():
             R = self.homeworld.radius
+            v = self.speed_guess
+            vp = v / math.sqrt(R*self.g)
             rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
-            d = abs(rads_away)*R
-            v = self.launch_speed
-            g = settings.GRAV_CONST * self.homeworld.mass / (R**2)
-            vp = v / math.sqrt(R*g)
 
-            radical = (1/4)*(1 - (2-vp**2)*vp**2)
-            if radical > 0:
-                radical = (d/(2*R) + 1)*math.sqrt(radical)
-                if radical < 1 and radical > -1:
-                    launch_angle = math.asin(radical)
+            term = (vp**2)/(2 - vp**2)
+            if term <= 1 and term >= -1:
+                self.angle_guess = 0.5*math.acos(term)    
+                
+                if rads_away > 0:
+                        self.angle_guess = self.pos_angle + math.pi/2 - self.angle_guess
+                else:
+                        self.angle_guess = self.pos_angle - math.pi/2 + self.angle_guess
 
-                    if rads_away > 0:
-                        self.angle_guess = self.pos_angle + math.pi/2 - launch_angle
-                    else:
-                        self.angle_guess = self.pos_angle - math.pi/2 + launch_angle
+                if self.angle_guess > 2*math.pi:
+                    self.angle_guess = self.angle_guess % (2*math.pi)
+                if self.angle_guess < 0:
+                    self.angle_guess = 2*math.pi + self.angle_guess
 
-                    if self.angle_guess > 2*math.pi:
-                        self.angle_guess = self.angle_guess % (2*math.pi)
-                    if self.angle_guess < 0:
-                        self.angle_guess = 2*math.pi + self.angle_guess
-
-                    guessed = True
-        else:
-            self.pick_launch_angle()
+                guessed = True
+            else:
+                # self.A = (self.g*self.target_surface_distance)/(self.speed_guess**2)
+                # self.D = (2 - vp**2)*(vp**2)
+                # print(self.A)
+                # print(self.D)
+                # self.angle_guess = scipy.optimize.brentq( self.find_this_root, 0, 2*math.pi )
+                self.pick_launch_angle()
+                self.pick_launch_speed()
+                guessed = True
         
         return guessed
   
     def guess_launch_speed(self):
         guessed = False
+        
         if self.target:
-            rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
             R = self.homeworld.radius
-            d = abs(rads_away)  *R
-            g = settings.GRAV_CONST * self.homeworld.mass / (R**2)
-            self.launch_speed = math.sqrt( g*d / (d/(2*R) + 1 ) )
+            rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+            # d = self.get_dist(self.target.x, self.target.y)
+            self.target_surface_distance = abs(rads_away)*R
+            d = self.target_surface_distance
+            self.speed_guess = math.sqrt( self.g*d / (d/(2*R) + 1 ) )
             guessed = True
-        else:
-            self.pick_launch_speed()
+        # else:
+          #  self.pick_launch_speed()
         
         return guessed
         
@@ -590,7 +650,6 @@ class Tank (cosmos.Celestial):
     def quick_target(self):
         # self.pick_launch_speed()
                     
-        self.guess_launch_speed()
         if not self.guess_launch_angle():
             if self.sts.debug:
                 self.sts.write_to_log(
@@ -601,12 +660,19 @@ class Tank (cosmos.Celestial):
         angle_ready = False
         speed_ready = False
 
-        angle_between = cosmos.angle_between(self.angle_guess, self.launch_angle)
+        if not self.guess_launch_angle():
+            self.targeting = False
+
+        if self.targeting:
+            angle_between = cosmos.angle_between(self.angle_guess, self.launch_angle)
     
-        if abs(angle_between) < (self.tolerance*self.radian_step):
-            angle_ready = True
-        if abs(self.launch_speed - self.speed_guess) < (self.tolerance*self.speed_step):
-            speed_ready = True
+            if abs(angle_between) < (self.tolerance*self.radian_step):
+                angle_ready = True
+            if abs(self.launch_speed - self.speed_guess) < (self.tolerance*self.speed_step):
+                speed_ready = True
+        else:
+            angle_ready = False
+            speed_ready = False
 
         danger_pixie_here = self.check_for_pixies(_tanks)
 
@@ -785,7 +851,7 @@ class Tank (cosmos.Celestial):
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} moved one unit CW...")
 
-    def _pick_move_or_shoot(self, _tanks):
+    def pick_move_or_shoot(self, _tanks):
         if "mage" in self.name.lower() or "archer" in self.name.lower():
             self.target = self.farthest_target(_tanks)
         elif "berserker" in self.name.lower():
@@ -799,11 +865,12 @@ class Tank (cosmos.Celestial):
                     
                     for _tank in _tanks:
                         if _tank.name != self.name:
+                            ang_btwn = cosmos.angle_between(self.pos_angle, _tank.pos_angle)
                             if  _tank.check_for_danger(_tanks) or _tank.spell_active:
                                 self.Spell_ice_counterspell(_tanks)
                                 break
                            
-                            elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
+                            elif abs(ang_btwn) > math.pi/2 and \
                             not self.check_for_danger(_tanks):
                                 self.Spell_meteor_portal(_tanks)
                                 break
@@ -815,15 +882,17 @@ class Tank (cosmos.Celestial):
                                     self.sts.write_to_log(
                                         f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
                                 self.Spell_raise_gravity(_tanks)
-                            else:
+                            elif (self.moving_CW and ang_btwn < 0) or (not self.moving_CW and ang_btwn > 0):
                                 self.Spell_summon_wolf()
+                                break
+                            elif self.find_first_armed_ball():
+                                self.Spell_clone_cannonball()
+                                break
                                                     
                 else:
                     self.chamber_ball()
-                    self.simple_target()
-                   
-                    
-                    # self.quick_target()
+                    # self.simple_target()
+                    self.quick_target()
                     if self.sts.debug:
                         self.sts.write_to_log(f"{self.name} chose to shoot...")
             else:
@@ -844,73 +913,6 @@ class Tank (cosmos.Celestial):
             if self.sts.debug:
                 self.sts.write_to_log(
                     f"No targets for {self.name}, chose to back down...")
-
-    def pick_move_or_shoot(self, _tanks):
-            if "mage" in self.name.lower() or "archer" in self.name.lower():
-                self.target = self.farthest_target(_tanks)
-            elif "berserker" in self.name.lower():
-                self.target= self.closest_target(_tanks)
-            else:
-                self.target = self.random_target(_tanks)
-            
-            if self.target:
-                d100 = random.uniform(0, 1)
-                if d100 < self.spell_weight and self.check_spell_ready():
-                    for _tank in _tanks:
-                        if _tank.name != self.name:
-                            if _tank.check_for_danger(_tanks) or _tank.spell_active:
-                                    self.Spell_ice_counterspell(_tanks)
-                                    break
-                            elif self.get_dist(_tank.x, _tank.y) < 4*settings.DEFAULT_EXPLODE_RADIUS:
-                                    self.Spell_shock_strike()
-                                    break
-                            elif abs(cosmos.angle_between(self.pos_angle, _tank.pos_angle)) > math.pi/2 and \
-                                not self.check_for_danger(_tanks):
-                                    self.Spell_meteor_portal(_tanks)
-                                    break
-                            elif self.find_first_armed_ball() == _tanks[_tanks.index(_tank)].check_for_danger(_tanks):
-                                    self.Spell_clone_cannonball()
-                                    break
-                            elif self.clear_skies(_tanks):
-                                if self.sts.debug:
-                                    self.sts.write_to_log(
-                                        f"{self.name} saw no celestials or cannonballs above their heads and is casting Gravity...")
-                                self.Spell_raise_gravity(_tanks)
-                            else:
-                                self.Spell_summon_wolf()
-                elif (d100 - self.spell_weight) < self.fire_weight:
-                        
-                        self.chamber_ball()
-                        self.simple_target()
-                        
-                        if self.check_spell_ready() and random.uniform(0,1) < self.spell_weight:
-                            if self.target == self.farthest_target(_tanks) \
-                            and self.speed_guess > (0.8*self.escape_v):
-                                self.Spell_homing_fireball(_tanks)
-                            elif self.speed_guess > (0.5*self.escape_v):
-                                self.Spell_big_cannonball()
-                                                    
-                        # self.quick_target()
-                        if self.sts.debug:
-                            self.sts.write_to_log(f"{self.name} chose to shoot...")
-                else:
-                    self.targeting = False
-                    self.pick_position()
-                    self.move_to_position_target(_tanks)
-                    if self.sts.debug:
-                        self.sts.write_to_log(f"{self.name} chose to move...")
-            elif self.check_for_danger(_tanks):
-                self.pos_target = random.uniform(0, 2*math.pi)
-                self.move_to_position_target(_tanks)
-            elif not self.invulnerable:
-                self.moving = False
-                self.targeting = False
-                self.detonate_ball()
-                if self.chambered_ball:
-                    self.eject_ball()
-                if self.sts.debug:
-                    self.sts.write_to_log(
-                        f"No targets for {self.name}, chose to back down...")
 
     def random_target(self, _tanks):
         """ Pick a target amongst list of tanks """
@@ -1384,7 +1386,7 @@ class Tank (cosmos.Celestial):
                     elif "-walk" in pixie.name.lower():
                         if ( time.time() - self.spell_timer ) > 10*settings.DEFAULT_SPELL_TIME:
                             pixie.name = "spirit-banish"
-                            pixie.screen_displacement = self.screen_displacement
+                            pixie.screen_displacement = self.screen_displacement*0.8
                             pixie.set_frames(self.Spell_wolf_frames["summon"])
                             pixie.fix_snail_pix()
                             pixie.frame_wait = 1/10
@@ -1440,7 +1442,7 @@ class Tank (cosmos.Celestial):
                                     if good_hit:
                                         _tank.dying = True
                                         pixie.name = "spirit-banish"
-                                        pixie.screen_displacement = self.screen_displacement
+                                        pixie.screen_displacement = self.screen_displacement*0.8
                                         pixie.set_frames(self.Spell_wolf_frames["summon"])
                                         pixie.fix_snail_pix()
                                         pixie.frame_wait = 1/10
@@ -1459,7 +1461,7 @@ class Tank (cosmos.Celestial):
                         
                 else:
                     pixie.name = f"{self.name}'s spirit-banish"
-                    pixie.screen_displacement = self.screen_displacement
+                    pixie.screen_displacement = self.screen_displacement*0.8
                     pixie.set_frames(self.Spell_wolf_frames["summon"])
                     pixie.fix_snail_pix()
                     pixie.animate = True
@@ -1902,7 +1904,7 @@ class Tank (cosmos.Celestial):
             self.effect_pixies[-1].moving_CW = self.moving_CW
             self.effect_pixies[-1].radius = settings.DEFAULT_EXPLODE_RADIUS*3
             self.effect_pixies[-1].set_screen_radius()
-            self.effect_pixies[-1].screen_displacement = self.screen_displacement
+            self.effect_pixies[-1].screen_displacement = self.screen_displacement*0.8
             self.effect_pixies[-1].fix_snail_pix()             
             # self.effect_pixies[-1].screen_rad = self.screen_rad*1.5
         

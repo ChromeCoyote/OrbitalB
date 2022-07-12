@@ -188,6 +188,7 @@ SPELL_BIG_BALL = pygame.K_b
 SPELL_WOLF = pygame.K_w
 SPELL_FIREBALL = pygame.K_f
 SPELL_SHOCK = pygame.K_s
+KILL_SELF = pygame.K_k
 
 AI_NATURES = ["Archer", "Mage", "Berserker", "Rogue"]
 DEFAULT_AI_TOLERANCE = 1

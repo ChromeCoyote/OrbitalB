@@ -48,7 +48,7 @@ class Tank (cosmos.Celestial):
         """ Initialize variables for tank """
         super().__init__(sts)
 
-        self.name = "Player Tank"
+        self.name = "Snail"
 
         self.radius = 0.1            # 100 m meter radius
         
@@ -82,6 +82,11 @@ class Tank (cosmos.Celestial):
 
         self.balls = []                  # empty active cannonballs
         self.chambered_ball = False              # ball chambered or not
+        # virtual ball for drawing launch path
+        self.virtual_ball = cosmos.Cannonball(self.sts, self.celestials)
+        self.virtual_ball.name = "Virtual Cannonball"
+        self.old_values = { "speed": 0, "angle": 0}
+        self.launch_pixels = []
         # self.num_balls = 0
         self.total_balls = 0
 
@@ -203,9 +208,19 @@ class Tank (cosmos.Celestial):
             self.launch_speed = self.escape_v
         
         if self.launch_angle < 0:
-            self.launch_angle = 0
+            self.launch_angle = 2*math.pi + self.launch_angle
         elif self.launch_angle > (2*math.pi):
             self.launch_angle = self.launch_angle % (2*math.pi)
+
+        if self.speed_guess < 0:
+            self.speed_guess = 0
+        elif self.speed_guess > self.escape_v:
+            self.speed_guess = self.escape_v
+        
+        if self.angle_guess < 0:
+            self.angle_guess = 2*math.pi + self.launch_angle
+        elif self.angle_guess > (2*math.pi):
+            self.angle_guess = self.angle_guess % (2*math.pi)
         
     def reset_default_launch(self):
         self.launch_speed = settings.DEFAULT_ESCAPE_FRAC * self.escape_v            # default speed
@@ -354,9 +369,8 @@ class Tank (cosmos.Celestial):
         """ Move active balls """
         for ball in self.balls:
             if ball.active == True:
-                ball.move(self.celestials)
-                ball.check_off_screen()
-    
+                ball.move(self.celestials, self.sts.tres)
+
     def check_balls(self, tanks):
         """ Check status of active balls """
 
@@ -467,6 +481,72 @@ class Tank (cosmos.Celestial):
         [tip_x, tip_y] = super().set_screenxy(tip_x, tip_y)
         pygame.draw.line(self.sts.screen, self.arrow_color, [self.screen_x, self.screen_y], [tip_x, tip_y])
         return (tip_x, tip_y)
+    
+    def find_launch_path(self):
+        if self.old_values["speed"] != self.launch_speed or self.old_values["angle"] != self.launch_angle:
+            self.launch_pixels = []
+            self.virtual_ball.set_xy(self.x, self.y)
+            self.get_screenxy()
+            self.fix_launch_velocity()
+            [self.virtual_ball.vx, self.virtual_ball.vy] = self.get_launch_velocity()
+
+            # virtual_tres = self.sts.tres + self.sts.tres*(self.launch_speed / self.escape_v )
+            virtual_tres = self.sts.tres
+
+            home = [self.homeworld]
+
+            self.virtual_ball.move(home, virtual_tres)
+            self.launch_pixels.append( (self.virtual_ball.screen_x, self.virtual_ball.screen_y) )
+
+            while not self.virtual_ball.check_hit(self.homeworld):
+                self.virtual_ball.move(home, virtual_tres)
+                if (self.virtual_ball.screen_x != self.launch_pixels[-1][0] \
+                or self.virtual_ball.screen_y != self.launch_pixels[-1][1]):
+                    self.launch_pixels.append( (self.virtual_ball.screen_x, self.virtual_ball.screen_y) )
+
+            self.old_values["speed"] = self.launch_speed
+            self.old_values["angle"] = self.launch_angle
+    
+    def draw_launch_path(self):
+        
+        if not self.frozen or not self.dying:
+            self.find_launch_path()
+            step = 1
+            for pixel in self.launch_pixels:
+                if not (step % 10):
+                    self.sts.screen.set_at(pixel, self.color)
+                step += 1
+
+    def draw_launch_ellipse(self):
+        r0 = self.get_dist(self.homeworld.x, self.homeworld.y)
+        v0 = self.launch_speed
+        psi = cosmos.angle_between(self.pos_angle, self.launch_angle)
+        h = abs(r0*v0*math.sin(psi))
+        # print(f"\n{self.name}'s h:  {h}")
+        mu = settings.GRAV_CONST*self.homeworld.mass
+        k = h**2/mu
+        eps = (v0**2)/2 - mu/r0
+        # e = (k - r0)/(r0*math.cos(theta))
+        e = math.sqrt(1 + (2*eps*h**2)/mu**2)
+        # print(f"\n{self.name}'s e:  {e}")
+        if e < 1:
+            a = k/(1 - e**2)
+            # print(f"\n{self.name}'s semi-major axis:  {a}.")
+            screen_a = int(self.sts.screen_dist_scale*a)
+            # print(f"\n{self.name}'s semi-major axis screen length:  {screen_a}.")
+            b = math.sqrt(a*k)
+            # print(f"\n{self.name}'s semi-minor axis:  {b}.")
+            screen_b = int(self.sts.screen_dist_scale*b)
+            # print(f"\n{self.name}'s semi-minor axis screen length:  {screen_b}.")
+            c = math.sqrt(a**2 - b**2)
+            # print(f"\n{self.name}'s c:  {c}.")
+            ell_center = (self.homeworld.x - c, self.homeworld.y)
+            ell_screen_center = self.set_screenxy(ell_center[0], ell_center[1])
+            # print(f"\nLeft:  {ell_screen_center[0] - screen_a}, Top:  {ell_screen_center[1] - screen_b}")
+            ell_rect = (ell_screen_center[0] - screen_b, ell_screen_center[1] - screen_a, 2**screen_b, 2*screen_a)
+            ellipse = pygame.draw.ellipse(self.sts.screen, self.color, ell_rect)
+            
+
 
     def write_tank_values(self):
         """Print properties of tank"""
@@ -594,35 +674,41 @@ class Tank (cosmos.Celestial):
     def guess_launch_angle(self):
         guessed = False
         
+        rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
+
         if self.target and self.guess_launch_speed():
             R = self.homeworld.radius
             v = self.speed_guess
             vp = v / math.sqrt(R*self.g)
-            rads_away = cosmos.angle_between(self.target.pos_angle, self.pos_angle)
 
             term = (vp**2)/(2 - vp**2)
             if term <= 1 and term >= -1:
                 self.angle_guess = 0.5*math.acos(term)    
                 
                 if rads_away > 0:
-                        self.angle_guess = self.pos_angle + math.pi/2 - self.angle_guess
+                    self.angle_guess = self.pos_angle + math.pi/2 - self.angle_guess
                 else:
-                        self.angle_guess = self.pos_angle - math.pi/2 + self.angle_guess
-
-                if self.angle_guess > 2*math.pi:
-                    self.angle_guess = self.angle_guess % (2*math.pi)
-                if self.angle_guess < 0:
-                    self.angle_guess = 2*math.pi + self.angle_guess
+                    self.angle_guess = self.pos_angle - math.pi/2 + self.angle_guess
+                
+                self.fix_launch_velocity()
 
                 guessed = True
             else:
-                # self.A = (self.g*self.target_surface_distance)/(self.speed_guess**2)
-                # self.D = (2 - vp**2)*(vp**2)
-                # print(self.A)
-                # print(self.D)
-                # self.angle_guess = scipy.optimize.brentq( self.find_this_root, 0, 2*math.pi )
-                self.pick_launch_angle()
-                self.pick_launch_speed()
+                mu = settings.GRAV_CONST*self.homeworld.mass
+                d_half = 0.5*self.get_dist(self.target.x, self.target.y)
+                # a = math.sqrt( 0.5*(R**2 + d_half**2) )
+                a = d_half
+                self.speed_guess = math.sqrt(mu*(2/R - 1/a))
+                
+                if rads_away < 0:
+                    self.angle_guess = self.pos_angle - math.pi/2
+                else:
+                    self.angle_guess = self.pos_angle + math.pi/2
+
+                self.fix_launch_velocity()
+
+                # self.pick_launch_angle()
+                # self.pick_launch_speed()
                 guessed = True
         
         return guessed
@@ -661,7 +747,15 @@ class Tank (cosmos.Celestial):
         speed_ready = False
 
         if not self.guess_launch_angle():
-            self.targeting = False
+            self.eject_ball()
+        
+        self.targeting = False
+        for _tank in _tanks:
+            if self.target == _tank:
+                self.targeting = True
+        
+        if not self.targeting:
+            self.eject_ball()
 
         if self.targeting:
             angle_between = cosmos.angle_between(self.angle_guess, self.launch_angle)
@@ -713,27 +807,31 @@ class Tank (cosmos.Celestial):
                 self.moving = True                    
                     
         elif self.targeting:
-            if self.sts.debug and not angle_ready:
-                self.sts.write_to_log(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
-            if self.sts.debug and not speed_ready:
-                if self.sts.debug and not angle_ready:
-                    self.sts.write_to_log(f"{self.name} Launch speed not within tolerances, adjusting firing solution...")
+            if self.sts.debug:
+                log_text = [f"Target launch speed is {self.speed_guess}, current launch speed is {self.launch_speed}."]
+                log_text.append(f"Target launch angle is {self.angle_guess}, current launch angle is {self.launch_angle}.")
+                if not angle_ready:
+                    log_text.append(f"{self.name} Launch angle not within tolerances, adjusting firing solution...")
+                if not speed_ready:
+                    log_text.append(f"{self.name} Launch speed not within tolerances, adjusting firing solution...")
             if angle_between > 0 and not angle_ready:
-                    self.launch_angle += self.radian_step
-                    if self.sts.debug:
-                        self.sts.write_to_log(f"{self.name} adjusted targeting angle one unit CCW...")
+                self.launch_angle += self.radian_step
+                if self.sts.debug:
+                    log_text.append(f"{self.name} adjusted targeting angle one unit CCW...")
             elif angle_between < 0 and not angle_ready:
                 self.launch_angle -= self.radian_step
                 if self.sts.debug:
-                        self.sts.write_to_log(f"{self.name} adjusted targeting angle one unit CW...")      
+                    log_text.append(f"{self.name} adjusted targeting angle one unit CW...")      
             elif self.launch_speed > self.speed_guess and not speed_ready:
                 self.launch_speed -= self.speed_step
                 if self.sts.debug:
-                    self.sts.write_to_log(f"{self.name} lowered launch speed one unit...")
+                    log_text.append(f"{self.name} lowered launch speed one unit...")
             elif self.launch_speed < self.speed_guess and not speed_ready:
                 self.launch_speed += self.speed_step
                 if self.sts.debug:
-                    self.sts.write_to_log(f"{self.name} increased launch speed one unit...")
+                    log_text.append(f"{self.name} increased launch speed one unit...")
+            if self.sts.debug:
+                self.sts.write_to_log(log_text)
 
     def pick_position(self):
             if self.target:

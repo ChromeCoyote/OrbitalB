@@ -250,11 +250,13 @@ class Engine:
         if len(self.tanks) > 0:
             for tank in self.tanks:
                 if tank.chambered_ball:
-                    tank.draw_launch_v()
+                    # tank.draw_launch_v()
+                    tank.draw_launch_path()
+                    tank.draw_launch_ellipse()
                 tank.draw_bodycircle()
 
         # then the homworld...
-        self.celestials[0].draw_bodycircle()
+        # self.celestials[0].draw_bodycircle()
 
         # then effects...
         if len(self.tanks) > 0:

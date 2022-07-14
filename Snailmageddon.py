@@ -10,6 +10,9 @@ for role in settings.AI_NATURES:
 
 counts["errors"] = 0
 
+lowest_FPS = 100
+FPS = 0
+
 while True:
 
     loops += 1
@@ -53,7 +56,7 @@ while True:
             while MainEngine.time < (MainEngine.sts.time_scale * MainEngine.sts.tres):
                 
                 for body in MainEngine.celestials:
-                    body.move(MainEngine.celestials)
+                    body.move(MainEngine.celestials, MainEngine.sts.tres)
                     for tank in MainEngine.tanks:
                         tank.check_smush(body)    
                     body.shatter(MainEngine.celestials, MainEngine.tanks)
@@ -82,8 +85,11 @@ while True:
 
             MainEngine.manage_events(pygame.event.get())    
             # draw FPS to measure performance
+            FPS = MainEngine.clock.get_fps()
+            if FPS < lowest_FPS and FPS > 0:
+                lowest_FPS = FPS
             MainEngine.display_temp_text(
-                (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
+                (f"FPS:  {int(FPS)}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
                 
             if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
                 if not MainEngine.tanks[0].dying:
@@ -113,6 +119,7 @@ while True:
         counts["errors"] += 1
     finally:
         print(counts)        
+        print(f"\nLowest FPS:  {lowest_FPS}")
         del MainEngine
         del MainSettings
         gc.collect()

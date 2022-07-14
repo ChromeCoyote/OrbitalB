@@ -398,11 +398,11 @@ class Celestial:
                 self.ax += addx
                 self.ay += addy
 
-    def accelerate(self, celestials):
+    def accelerate(self, celestials, time_res):
         """ Change celestial body's velocity """
         self.set_accel(celestials)
-        self.vx += self.ax * self.sts.tres
-        self.vy += self.ay * self.sts.tres
+        self.vx += self.ax * time_res
+        self.vy += self.ay * time_res
 
     def check_hit(self, celestial):
         """  Checks to see if self object has hit given object """
@@ -555,9 +555,9 @@ class Celestial:
             if self.sts.debug:
                 self.sts.write_to_log(f"{self.name} is being removed for being too far down off-screen...")
    
-    def move(self, celestials):
+    def move(self, celestials, time_res):
         """ Move object based on current velocity """
-        self.accelerate(celestials)
+        self.accelerate(celestials, time_res)
         self.x += self.vx * self.sts.tres
         self.y += self.vy * self.sts.tres
         self.get_screenxy()

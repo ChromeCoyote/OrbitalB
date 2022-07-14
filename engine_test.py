@@ -3,6 +3,7 @@ import tank as _tank
 import cosmos, engine
 
 MainSettings = settings.Settings()
+MainSettings.debug = True
 
 # experimenting with FPS & time
 MainSettings.set_scales(MainSettings.rad_scale, 1, 10)
@@ -14,20 +15,20 @@ MainEngine.create_homeworld()
 
 # create moons
 MainEngine.create_moon()
-MainEngine.create_moon()
-MainEngine.create_moon()
+# MainEngine.create_moon()
+# MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 
 # MainEngine.create_comet()
 
-MainEngine.create_tank(False)
-MainEngine.create_tank(False)
-MainEngine.create_tank(False)
+MainEngine.create_tank(True)
+MainEngine.create_tank(True)
+# MainEngine.create_tank(True)
 
 # DEBUGGING:
-# MainEngine.tanks[1].frozen = True
+MainEngine.tanks[1].frozen = True
 # MainEngine.tanks[2].frozen = True
 
 destroyed_tanks = False
@@ -48,7 +49,7 @@ while not MainEngine.game_over:
     while MainEngine.time < (MainEngine.sts.time_scale * MainEngine.sts.tres):
         
         for body in MainEngine.celestials:
-            body.move(MainEngine.celestials)
+            body.move(MainEngine.celestials, MainEngine.sts.tres)
             for tank in MainEngine.tanks:
                 tank.check_smush(body)    
             body.shatter(MainEngine.celestials, MainEngine.tanks)
@@ -77,9 +78,9 @@ while not MainEngine.game_over:
 
     MainEngine.manage_events(pygame.event.get())    
     # draw FPS to measure performance
-    if MainEngine.sts.debug:
-        MainEngine.display_temp_text(
-            (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
+    # if MainEngine.sts.debug:
+    MainEngine.display_temp_text(
+        (f"FPS:  {int(MainEngine.clock.get_fps())}", MainEngine.screen_rect.midtop, settings.DEFAULT_FONT_COLOR) )   
           
     if len(MainEngine.tanks) == 1 and not MainEngine.tanks[0].balls:
         if not MainEngine.tanks[0].dying:

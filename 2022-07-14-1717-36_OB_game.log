@@ -1,0 +1,53 @@
+<<<17:17:36:856538>>>  Pix\Homeworlds\Terran\4.png loaded as pixie for Earth...
+<<<17:17:36:856538>>>  Image at Pix\Homeworlds\Terran\4.png chosen as homeworld pix for Earth's...
+<<<17:17:36:856538>>>  Pix\Moons\9.png loaded as pixie for Moon #2...
+<<<17:17:36:931346>>>  Pix\Snails\Green_Snail\Spells\Spellready_Icon\spellready.png returned as pixie for Snail #1 Green Player...
+<<<17:17:36:931346>>>  Pix\Magic\Scroll\scroll.png returned as pixie for Snail #1 Green Player...
+<<<17:17:36:931346>>>  Snail #1 Green Player successfully created!
+<<<17:17:37:003770>>>  Pix\Snails\Red_Snail\Spells\Spellready_Icon\spellready.png returned as pixie for Snail #2 Red Player...
+<<<17:17:37:003770>>>  Pix\Magic\Scroll\scroll.png returned as pixie for Snail #2 Red Player...
+<<<17:17:37:003770>>>  Snail #2 Red Player successfully created!
+<<<17:17:37:089234>>>  Snail #1 Green Player chambered cannonball...
+<<<17:17:37:089234>>>
+* CURRENT VALUES FOR CELESTIAL BODY:  Snail #1 Green Player's Cannonball #1
+* This is not the homeworld.
+* The celestial boyd's density is 5515 kg/m^3.
+* The celestial body's mass is 1000 kg.
+* The Earth's mass is 5.972e+24 kg.
+* The celestial body's radius is 0.001 km.
+* The celestial body's coordinates are (3.9011123786838936e-13, 6371.0).
+* The celestial body's velocity is (0.0005493897632601502, 5.594333216474259).
+* The celestial body's speed is 5.594333243450585 km/s.
+* The celestial body's acceleration is (0, 0).
+* The celestial body's screen x and y coordinates are (768, 345).
+* The celestial body's screen radius is 2.
+* The celestial is using a body circle.
+<<<17:17:37:089234>>>
+* ADDITIONAL INFORMATION FOR Snail #1 Green Player's Cannonball #1:
+* This cannonball is chambered.
+<<<17:17:48:413386>>>
+* INFORMATION FOR Snail #1 Green Player's CANNONBALLS:
+* Cannonballs in memory for Snail #1 Green Player:  1.
+* Total cannonballs fired or chambered for Snail #1 Green Player:  1.
+<<<17:17:48:413386>>>
+* CURRENT VALUES FOR CELESTIAL BODY:  Snail #1 Green Player's Cannonball #1
+* This is not the homeworld.
+* The celestial boyd's density is 5515 kg/m^3.
+* The celestial body's mass is 1000 kg.
+* The Earth's mass is 5.972e+24 kg.
+* The celestial body's radius is 0.001 km.
+* The celestial body's coordinates are (-59.14493336439611, 6103.528614133209).
+* The celestial body's velocity is (0.0005493897632601502, 5.594333216474259).
+* The celestial body's speed is 5.594333243450585 km/s.
+* The celestial body's acceleration is (0, 0).
+* The celestial body's screen x and y coordinates are (767, 349).
+* The celestial body's screen radius is 2.
+* The celestial is using a body circle.
+<<<17:17:48:413386>>>
+* ADDITIONAL INFORMATION FOR Snail #1 Green Player's Cannonball #1:
+* This cannonball is chambered.
+<<<17:17:48:413386>>>
+* INFORMATION FOR Snail #2 Red Player's CANNONBALLS:
+* Cannonballs in memory for Snail #2 Red Player:  0.
+* Total cannonballs fired or chambered for Snail #2 Red Player:  0.
+<<<17:17:48:413386>>>  Quit through pygame and writing log file...

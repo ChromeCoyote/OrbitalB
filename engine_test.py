@@ -14,7 +14,7 @@ MainEngine = engine.Engine(MainSettings)
 MainEngine.create_homeworld()
 
 # create moons
-MainEngine.create_moon()
+# MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()
 # MainEngine.create_moon()

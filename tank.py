@@ -510,17 +510,19 @@ class Tank (cosmos.Celestial):
     def draw_launch_path(self):
         
         if not self.frozen or not self.dying:
-            self.find_launch_path()
-            step = 1
+            # self.find_launch_path()
+            # step = 1
             for pixel in self.launch_pixels:
-                if not (step % 10):
-                    self.sts.screen.set_at(pixel, self.color)
-                step += 1
+                # if not (step % 10):
+                self.sts.screen.set_at(pixel, self.color)
+                # step += 1
 
-    def draw_launch_ellipse(self):
+    def set_launch_ellipse(self):
         r0 = self.get_dist(self.homeworld.x, self.homeworld.y)
         v0 = self.launch_speed
-        psi = cosmos.angle_between(self.pos_angle, self.launch_angle)
+        R = self.homeworld.radius
+        theta = self.launch_angle
+        psi = cosmos.angle_between(self.pos_angle, theta)
         h = abs(r0*v0*math.sin(psi))
         # print(f"\n{self.name}'s h:  {h}")
         mu = settings.GRAV_CONST*self.homeworld.mass
@@ -532,22 +534,39 @@ class Tank (cosmos.Celestial):
         if e < 1:
             a = k/(1 - e**2)
             # print(f"\n{self.name}'s semi-major axis:  {a}.")
-            screen_a = int(self.sts.screen_dist_scale*a)
+            # screen_a = int(self.sts.screen_dist_scale*a)
             # print(f"\n{self.name}'s semi-major axis screen length:  {screen_a}.")
             b = math.sqrt(a*k)
             # print(f"\n{self.name}'s semi-minor axis:  {b}.")
-            screen_b = int(self.sts.screen_dist_scale*b)
+            # screen_b = int(self.sts.screen_dist_scale*b)
             # print(f"\n{self.name}'s semi-minor axis screen length:  {screen_b}.")
             c = math.sqrt(a**2 - b**2)
             # print(f"\n{self.name}'s c:  {c}.")
-            ell_center = (self.homeworld.x - c, self.homeworld.y)
-            ell_screen_center = self.set_screenxy(ell_center[0], ell_center[1])
+            # ell_center = (self.homeworld.x - c, self.homeworld.y)
+            # ell_screen_center = self.set_screenxy(ell_center[0], ell_center[1])
             # print(f"\nLeft:  {ell_screen_center[0] - screen_a}, Top:  {ell_screen_center[1] - screen_b}")
-            ell_rect = (ell_screen_center[0] - screen_b, ell_screen_center[1] - screen_a, 2**screen_b, 2*screen_a)
-            ellipse = pygame.draw.ellipse(self.sts.screen, self.color, ell_rect)
+            # ell_rect = (ell_screen_center[0] - screen_b, ell_screen_center[1] - screen_a, 2**screen_b, 2*screen_a)
+            # ellipse = pygame.draw.ellipse(self.sts.screen, self.color, ell_rect)
+            self.launch_pixels = []
+            # self.virtual_ball.set_xy(self.x, self.y)
+            # self.get_screenxy()
+            # self.fix_launch_velocity()
+            # home = [self.homeworld]
+            target_pos_angle = math.acos( (k - R)/(R*e) )
+            rot_ang = cosmos.angle_between(self.pos_angle, target_pos_angle)
+            if self.launch_angle < self.pos_angle:
+                    rot_ang += math.pi
+            ang = 0
+            while ang < 2*math.pi:
+                (self.virtual_ball.x, self.virtual_ball.y) = (a*math.cos(ang) - c, b*math.sin(ang))
+                (self.virtual_ball.x, self.virtual_ball.y) = cosmos.rotate_vector(
+                      (self.virtual_ball.x, self.virtual_ball.y), rot_ang)
+                if self.launch_angle < self.pos_angle:
+                    self.virtual_ball.y = -self.virtual_ball.y
+                self.virtual_ball.get_screenxy()
+                self.launch_pixels.append( (self.virtual_ball.screen_x, self.virtual_ball.screen_y) )
+                ang += 5*self.radian_step
             
-
-
     def write_tank_values(self):
         """Print properties of tank"""
         printx = 0

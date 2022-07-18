@@ -714,15 +714,16 @@ class Tank (cosmos.Celestial):
                 guessed = True
             else:
                 mu = settings.GRAV_CONST*self.homeworld.mass
-                d_half = 0.5*self.get_dist(self.target.x, self.target.y)
-                # a = math.sqrt( 0.5*(R**2 + d_half**2) )
-                a = d_half
-                self.speed_guess = math.sqrt(mu*(2/R - 1/a))
-                
-                if rads_away < 0:
-                    self.angle_guess = self.pos_angle - math.pi/2
-                else:
-                    self.angle_guess = self.pos_angle + math.pi/2
+                a = (5/4)*R
+                # b = (1/2)*self.get_dist(self.target.x, self.target.y)
+                self.speed_guess = math.sqrt( mu*(2/R - 1/a) )
+                # self.angle_guess = math.asin(
+                #     ( b/(R*self.speed_guess) )*math.sqrt(mu/a) )
+
+                # if rads_away < 0:
+                self.angle_guess = self.pos_angle - rads_away
+                # else:
+                #    self.angle_guess = self.pos_angle + rads_away
 
                 self.fix_launch_velocity()
 

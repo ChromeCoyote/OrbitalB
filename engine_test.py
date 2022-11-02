@@ -3,7 +3,7 @@ import tank as _tank
 import cosmos, engine
 
 MainSettings = settings.Settings()
-MainSettings.debug = False
+MainSettings.debug = True
 
 # experimenting with FPS & time
 MainSettings.set_scales(MainSettings.rad_scale, 1, 10)
@@ -23,15 +23,15 @@ MainEngine.create_homeworld()
 
 # MainEngine.create_comet()
 
+MainEngine.create_tank(True)
 MainEngine.create_tank(False)
 MainEngine.create_tank(False)
-MainEngine.create_tank(False)
-MainEngine.tanks[0].name = "Archer #1"
-MainEngine.tanks[0].spell_weight = 0
-MainEngine.tanks[1].name = "Archer #2"
-MainEngine.tanks[1].spell_weight = 0
-MainEngine.tanks[2].name = "Archer #3"
-MainEngine.tanks[2].spell_weight = 0
+# MainEngine.tanks[0].name = "Archer #1"
+# MainEngine.tanks[0].spell_weight = 0
+# MainEngine.tanks[1].name = "Archer #2"
+# MainEngine.tanks[1].spell_weight = 0
+# MainEngine.tanks[2].name = "Archer #3"
+# MainEngine.tanks[2].spell_weight = 0
 
 # DEBUGGING:
 # MainEngine.tanks[1].frozen = True

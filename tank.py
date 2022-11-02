@@ -1,6 +1,6 @@
 # Code for projectile
 
-import pygame, math, random, numpy, time, os, scipy.optimize
+import pygame, math, random, numpy, time, os
 import settings, cosmos
 
 def check_tanks(tanks, _settings):

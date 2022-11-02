@@ -249,12 +249,12 @@ class Engine:
         # then launch arrows, then tanks....
         if len(self.tanks) > 0:
             for tank in self.tanks:
-                # if tank.chambered_ball:
-                    # tank.draw_launch_v()
-                    # tank.find_launch_path()
-                    # tank.draw_launch_path()
-                    # tank.set_launch_ellipse()
-                    # tank.draw_launch_path()
+                if tank.chambered_ball:
+                    tank.draw_launch_v()
+                    tank.find_launch_path()
+                    tank.draw_launch_path()
+                    tank.set_launch_ellipse()
+                    tank.draw_launch_path()
                 tank.draw_bodycircle()
 
         # then the homworld...
